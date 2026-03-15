@@ -37,7 +37,8 @@ import {
   readRawFilesIndex,
   writeRawFilesIndex
 } from '../lib/file-store.js';
-import { isR2Configured, listR2Objects, deleteR2Object, getPresignedUploadUrl, getPresignedDownloadUrl } from '../lib/r2-client.js';
+import { isR2Configured, listR2Objects, deleteR2Object, getPresignedDownloadUrl } from '../lib/r2-client.js';
+import { getPresignedUploadUrl as getSdkPresignedUploadUrl } from '../lib/r2-storage.js';
 import {
   clearAdminSession,
   issueAdminSession,
@@ -381,7 +382,7 @@ router.post('/api/admin/r2/upload-url', requireAdminSession, enforceJsonContentT
     if (!filename) return res.status(400).json({ ok: false, error: 'filename_required' });
 
     const r2Key = String(filename).replace(/\.\./g, '').replace(/^\/+/, '');
-    const uploadUrl = getPresignedUploadUrl(r2Key, contentType || 'application/octet-stream', 900);
+    const uploadUrl = await getSdkPresignedUploadUrl(r2Key, contentType || 'application/octet-stream', 900);
     res.json({ ok: true, uploadUrl, r2Key });
   } catch (err) {
     next(err);

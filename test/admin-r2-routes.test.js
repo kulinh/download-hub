@@ -9,6 +9,7 @@ import adminRouter from '../src/routes/admin.js';
 import { reloadConfig } from '../src/lib/config.js';
 import { createHmacToken } from '../src/lib/utils.js';
 import * as r2Client from '../src/lib/r2-client.js';
+import * as r2Storage from '../src/lib/r2-storage.js';
 
 const TEST_SESSION_SECRET = 'test-admin-session-secret-32chars!!';
 const TEST_ADMIN_USER = 'testadmin';
@@ -77,7 +78,7 @@ describe('admin R2 routes', () => {
       { key: 'foo.apk', sizeBytes: 10, lastModified: '2024-01-01T00:00:00Z' }
     ]);
     vi.spyOn(r2Client, 'deleteR2Object').mockResolvedValue(true);
-    vi.spyOn(r2Client, 'getPresignedUploadUrl').mockReturnValue('https://r2/upload');
+    vi.spyOn(r2Storage, 'getPresignedUploadUrl').mockResolvedValue('https://r2/upload');
     vi.spyOn(r2Client, 'getPresignedDownloadUrl').mockReturnValue('https://r2/download');
 
     app = makeApp();
