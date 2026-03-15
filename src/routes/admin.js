@@ -24,7 +24,6 @@
  */
 
 import express from 'express';
-import crypto from 'node:crypto';
 import path from 'node:path';
 import { config } from '../lib/config.js';
 import { getCaptchaProviderConfig, verifyCaptchaToken } from '../lib/captcha.js';
@@ -57,15 +56,6 @@ const router = express.Router();
 function pageData(req) {
   const locale = pickLocale(req, config.allowedLocales);
   return { locale, t: (key) => t(locale, key) };
-}
-
-function setCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: config.nodeEnv === 'production',
-    maxAge: (config.adminSessionTtlSeconds || 3600) * 1000
-  };
 }
 
 function slugify(value) {
@@ -110,10 +100,11 @@ router.get('/admin/login', (req, res) => {
 
 router.post('/admin/login', simpleRateLimit, async (req, res) => {
   const { locale } = pageData(req);
-  const password = (req.body?.password || '').trim();
-  const adminPassword = config.adminPassword;
+  const { username = '', password = '' } = req.body || {};
+  const adminUser = config.admin?.username || '';
+  const adminPass = config.admin?.password || '';
 
-  if (!adminPassword) {
+  if (!adminUser && !adminPass) {
     return res.redirect('/admin/login?error=admin_disabled');
   }
 
@@ -134,25 +125,17 @@ router.post('/admin/login', simpleRateLimit, async (req, res) => {
     }
   }
 
-  // Constant-time password comparison
-  const expected = Buffer.from(adminPassword);
-  const actual   = Buffer.from(password);
-  const match = expected.length === actual.length &&
-    crypto.timingSafeEqual(expected, actual);
-
-  if (!match) {
+  // Validate credentials
+  if (!validateAdminCredentials(username || adminUser, password)) {
     return res.redirect('/admin/login?error=invalid_credentials');
   }
 
-  const { token, csrf } = createSession();
-  res.cookie(SESSION_COOKIE_NAME, token, setCookieOptions());
+  issueAdminSession(res);
   res.redirect('/admin/r2?lang=' + locale);
 });
 
 router.post('/admin/logout', (req, res) => {
-  const token = req.cookies?.[SESSION_COOKIE_NAME] || '';
-  destroySession(token);
-  res.clearCookie(SESSION_COOKIE_NAME);
+  clearAdminSession(res);
   const { locale } = pageData(req);
   res.redirect('/admin/login?lang=' + locale);
 });
@@ -166,7 +149,7 @@ router.get('/admin', (req, res) => {
 
 // ── R2 Admin UI ───────────────────────────────────────────────────────────────
 
-router.get('/admin/r2', requireAdminSession, (req, res, next) => {
+router.get('/admin/r2', requireAdminSessionPage, (req, res, next) => {
   try {
     const { locale, t: translate } = pageData(req);
     res.render('admin-r2', {
@@ -260,7 +243,7 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
 
 // ── R2 Sync Index ─────────────────────────────────────────────────────────────
 
-router.post('/api/admin/r2/sync', requireAdminSession, validateCsrf, async (req, res, next) => {
+router.post('/api/admin/r2/sync', requireAdminSession, async (req, res, next) => {
   try {
     if (!isR2Configured()) {
       return res.json({ ok: true, synced: 0, message: 'r2_not_configured' });
@@ -316,7 +299,7 @@ router.post('/api/admin/r2/sync', requireAdminSession, validateCsrf, async (req,
 
 // ── Delete file ───────────────────────────────────────────────────────────────
 
-router.delete('/api/admin/r2/files/:slug', requireAdminSession, validateCsrf, async (req, res, next) => {
+router.delete('/api/admin/r2/files/:slug', requireAdminSession, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const catalog = await getAllFiles();
@@ -343,7 +326,7 @@ router.delete('/api/admin/r2/files/:slug', requireAdminSession, validateCsrf, as
 
 // ── Toggle publish ────────────────────────────────────────────────────────────
 
-router.patch('/api/admin/r2/files/:slug/publish', requireAdminSession, validateCsrf, async (req, res, next) => {
+router.patch('/api/admin/r2/files/:slug/publish', requireAdminSession, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const { published } = req.body || {};
@@ -362,7 +345,7 @@ router.patch('/api/admin/r2/files/:slug/publish', requireAdminSession, validateC
 
 // ── Update metadata ───────────────────────────────────────────────────────────
 
-router.patch('/api/admin/r2/files/:slug/metadata', requireAdminSession, validateCsrf, async (req, res, next) => {
+router.patch('/api/admin/r2/files/:slug/metadata', requireAdminSession, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const { title, summary, version, platform } = req.body || {};
@@ -386,7 +369,7 @@ router.patch('/api/admin/r2/files/:slug/metadata', requireAdminSession, validate
 
 // ── Presigned upload URL ──────────────────────────────────────────────────────
 
-router.post('/api/admin/r2/upload-url', requireAdminSession, validateCsrf, async (req, res, next) => {
+router.post('/api/admin/r2/upload-url', requireAdminSession, async (req, res, next) => {
   try {
     if (!isR2Configured()) {
       return res.status(503).json({ ok: false, error: 'r2_not_configured' });
@@ -404,7 +387,7 @@ router.post('/api/admin/r2/upload-url', requireAdminSession, validateCsrf, async
 
 // ── Confirm upload ────────────────────────────────────────────────────────────
 
-router.post('/api/admin/r2/upload-confirm', requireAdminSession, validateCsrf, async (req, res, next) => {
+router.post('/api/admin/r2/upload-confirm', requireAdminSession, async (req, res, next) => {
   try {
     const { r2Key, filename, sizeBytes, contentType } = req.body || {};
     if (!r2Key) return res.status(400).json({ ok: false, error: 'r2key_required' });

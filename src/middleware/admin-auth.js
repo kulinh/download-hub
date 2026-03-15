@@ -95,8 +95,22 @@ export function requireAdminSession(req, res, next) {
  * requireAdminSessionPage — UI routes: redirects to /admin/login instead of 401.
  */
 export function requireAdminSessionPage(req, res, next) {
-  const token = req.cookies?.[config.admin.cookieName];
-  const payload = token ? verifyHmacToken(token, config.admin.sessionSecret) : null;
+  // Allow legacy bearer token for page access too (less common, but consistent)
+  if (config.adminBearerToken) {
+    const authHeader = req.headers['authorization'] || '';
+    if (authHeader.startsWith('Bearer ')) {
+      const bearer = authHeader.slice(7);
+      if (bearer === config.adminBearerToken) {
+        req.adminSession = { role: 'admin', legacy: true };
+        res.locals.adminCsrfToken = '';
+        return next();
+      }
+    }
+  }
+
+  const token = req.cookies?.[config.admin?.cookieName || 'adm_s'];
+  const sessionSecret = config.admin?.sessionSecret || '';
+  const payload = token && sessionSecret ? verifyHmacToken(token, sessionSecret) : null;
 
   if (!payload || payload.role !== 'admin' || (payload.exp && Date.now() > payload.exp)) {
     if (payload?.exp && Date.now() > payload.exp) clearAdminSession(res);
@@ -104,6 +118,8 @@ export function requireAdminSessionPage(req, res, next) {
   }
 
   req.adminSession = payload;
+  // Generate a simple CSRF value based on session token (for EJS templates)
+  res.locals.adminCsrfToken = token ? token.slice(-16) : '';
   next();
 }
 
