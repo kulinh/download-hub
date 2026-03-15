@@ -93,6 +93,8 @@ See:
 - `deploy/MIGRATION-SCRIPTS.md`
 - `deploy/CUTOVER-RUNBOOK-ALPHA.md`
 - `deploy/ALPHA-MIGRATION-COMMANDS.md`
+- `deploy/ALPHA-CUTOVER-COPYPASTE.md`
+- `.env.production.alpha.template`
 - `deploy/RELEASE-HANDOFF.md`
 
 ## Required production env
