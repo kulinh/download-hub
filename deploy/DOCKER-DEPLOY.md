@@ -147,8 +147,10 @@ After uploading, add an entry to `src/data/files.json`:
 
 Then reload the catalog from admin panel (**Reload app index**) or:
 ```bash
-docker exec download-hub-app wget -qO- --post-data="" http://localhost:3000/api/admin/reload-legacy \
-  -H "Authorization: Bearer $ADMIN_BEARER_TOKEN"
+docker exec download-hub-app wget -qO- --post-data='{}' \
+  --header='Content-Type: application/json' \
+  --header='Authorization: Bearer $ADMIN_BEARER_TOKEN' \
+  http://localhost:3000/api/admin/reload
 ```
 
 ---

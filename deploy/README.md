@@ -1,171 +1,151 @@
-# Deployment Guide
+# Deployment Guide — Docker / Portainer / CloudPanel reverse proxy
 
-This project is designed to be easily deployed on **CloudPanel** (or any standard Linux VPS with Nginx and PM2).
+This file is the **canonical deployment guide** for `download-hub`.
 
-## Prerequisites
-- Node.js 20+
-- PM2 (global install)
-- Nginx
+## Target architecture
+- **Application runtime**: Docker container
+- **Stack orchestration**: Portainer or `docker compose`
+- **Reverse proxy / TLS**: CloudPanel Nginx on host
+- **Primary storage**: Cloudflare R2
+- **Public anti-bot**: Cloudflare Turnstile
+- **Admin security**: username + password + hCaptcha + session cookie
 
-## Auth architecture summary
+## 1. Prerequisites
+- Docker + Docker Compose v2, or Portainer Stack support
+- CloudPanel site / vhost for `download.888vn.net`
+- Cloudflare R2 bucket and API credentials
+- Turnstile site/secret key
+- hCaptcha site/secret key
 
-| Flow | Captcha | Auth |
-|------|---------|------|
-| Public download | Cloudflare Turnstile | None (download tokens) |
-| Admin panel login | hCaptcha | Username + password + hCaptcha → signed session cookie |
-| Admin API (all /api/admin/*) | — | Admin session cookie (required) |
-
-> **Legacy**: `ADMIN_BEARER_TOKEN` is a backward-compat mechanism for CI/CD
-> pipelines and old automation scripts. New deployments should use session
-> cookie auth exclusively. Leave `ADMIN_BEARER_TOKEN` empty in `.env` unless
-> you have an existing CI/CD pipeline that depends on it.
-
-## Deploying on CloudPanel
-
-### 1. Prepare Environment
-- Create a **Node.js** site in CloudPanel with domain `download.888vn.net`.
-- Note the webroot, typically `/home/cloudpanel/htdocs/download-888vn`.
-
-### 2. Setup Directory Structure
-We separate the application code (`app/`) from the file storage (`storage/`) to ensure downloaded files are kept safe across deployments.
-
+## 2. Prepare `.env`
+Copy and edit:
 ```bash
-mkdir -p /home/cloudpanel/htdocs/download-888vn/app
-mkdir -p /home/cloudpanel/htdocs/download-888vn/storage/files
-```
-
-### 3. Deploy Application Code
-Upload the repository contents to the `app/` directory.
-
-```bash
-cd /home/cloudpanel/htdocs/download-888vn/app
-npm install --omit=dev
 cp .env.example .env
 ```
 
-### 4. Configure Environment Variables (`.env`)
-Edit `.env` and configure essential variables:
-
+Required production values:
 ```env
 NODE_ENV=production
 APP_BASE_URL=https://download.888vn.net
 APP_HOSTNAME=download.888vn.net
+DOWNLOAD_TOKEN_SECRET=<long-random-secret>
 
-# Security Keys (CHANGE THESE)
-DOWNLOAD_TOKEN_SECRET=your_long_random_secret_string_here
-ADMIN_SESSION_SECRET=your_long_random_admin_session_secret
+ADMIN_USERNAME=<admin-user>
+ADMIN_PASSWORD=<strong-password>
+ADMIN_SESSION_SECRET=<long-random-secret>
 
-# Admin hard auth (REQUIRED in production)
-ADMIN_USERNAME=your_admin_username
-ADMIN_PASSWORD=your_strong_admin_password
-
-# Storage Path MUST be absolute in production
-FILES_STORAGE_PATH=/home/cloudpanel/htdocs/download-888vn/storage/files
-
-# Public download captcha: Cloudflare Turnstile (REQUIRED)
 TURNSTILE_ENABLED=true
-TURNSTILE_SITE_KEY=your_site_key
-TURNSTILE_SECRET_KEY=your_secret_key
+TURNSTILE_SITE_KEY=...
+TURNSTILE_SECRET_KEY=...
+TURNSTILE_ACTION=download_gate
 
-# Admin panel captcha: hCaptcha (REQUIRED in production)
 HCAPTCHA_ENABLED=true
-HCAPTCHA_SITE_KEY=your_hcaptcha_site_key
-HCAPTCHA_SECRET_KEY=your_hcaptcha_secret_key
+HCAPTCHA_SITE_KEY=...
+HCAPTCHA_SECRET_KEY=...
 HCAPTCHA_EXPECTED_HOSTNAME=download.888vn.net
 
-# Cloudflare R2 (REQUIRED in production)
 R2_ENABLED=true
-R2_ACCOUNT_ID=your_account_id
-R2_ACCESS_KEY_ID=your_access_key
-R2_SECRET_ACCESS_KEY=your_secret_key
-R2_BUCKET=your_bucket_name
-
-# Enable Nginx X-Accel-Redirect (local disk mode only, not needed with R2)
-USE_X_ACCEL_REDIRECT=false
-
-# Legacy bearer token for CI/CD pipelines (leave blank for new deployments)
-# ADMIN_BEARER_TOKEN=
+R2_ACCOUNT_ID=...
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET=download-hub-files
 ```
 
-### 5. Start with PM2
-Use the provided PM2 ecosystem file:
-
+## 3. Deploy with Docker Compose
 ```bash
-pm2 start deploy/ecosystem.config.cjs --env production
-pm2 save
+docker compose up -d --build
 ```
 
-### 6. Configure Nginx
-Copy the contents of `deploy/nginx-download-888vn.conf` into the CloudPanel Vhost configuration for your site. This enables `X-Accel-Redirect` for efficient file serving and adds security headers.
+Expected app bind:
+- `127.0.0.1:3000`
 
-### 7. Manage Files via Admin Panel
-1. Log in at `https://download.888vn.net/admin/login` with your credentials and hCaptcha.
-2. Use the **R2 File Management** interface to upload, sync, and publish files.
-3. Files uploaded to R2 are delivered via presigned URLs after Turnstile verification.
+Health check:
+```bash
+curl http://127.0.0.1:3000/health
+```
 
-## Minimal Operations Notes
+## 4. Deploy with Portainer
+1. Open **Stacks**
+2. Create stack
+3. Import or paste `docker-compose.yml`
+4. Add env vars from `.env`
+5. Deploy stack
 
-### Post-install validation
-- `curl -I https://download.888vn.net/health`
-- Open homepage and one file detail page over HTTPS
-- Log in to admin panel at `/admin/login`
-- Complete hCaptcha + credentials and confirm redirect to `/admin/r2`
-- Complete public download Turnstile and confirm download starts
-- Retry expired/shared link and confirm it is rejected with 403
-- Check `pm2 status` and `pm2 logs download-888vn --lines 100`
+## 5. CloudPanel reverse proxy
+CloudPanel should proxy HTTPS traffic to the app container at:
+- `http://127.0.0.1:3000`
 
-### Common production failures
+Use `deploy/nginx-download-888vn.conf` as the base vhost customization.
+After edits:
+```bash
+nginx -t && systemctl reload nginx
+```
 
-**hCaptcha fails on admin login**
-- Confirm `HCAPTCHA_ENABLED=true` and keys are correct
-- `HCAPTCHA_EXPECTED_HOSTNAME` must match production domain
-- Restart PM2 after env changes
+## 6. Validation checklist
+- `GET /health` returns 200
+- homepage renders
+- detail page renders
+- Turnstile appears on public flow
+- admin login page renders hCaptcha
+- admin login succeeds with username/password+hCaptcha
+- `/admin/r2` opens after login
+- R2 file list loads
+- upload-url + upload-confirm flow works
+- publish/unpublish metadata flow works
+- public download flow returns a working file for a published entry
+- expired token returns 403
 
-**Turnstile fails on public download**
-- Re-check Turnstile keys in `.env`
-- Confirm hostname/action match production domain
-- Restart PM2 after secret changes
+## 7. Troubleshooting
+### Public captcha fails
+- verify Turnstile keys
+- verify hostname and action
+- restart container after env change
 
-**Admin login redirects to login (session not established)**
-- Confirm `ADMIN_SESSION_SECRET` is set and non-placeholder
-- Confirm `ADMIN_COOKIE_NAME` matches between restarts
-- Check browser allows cookies from the domain
+### Admin login captcha fails
+- verify hCaptcha keys
+- verify expected hostname
+- restart container after env change
 
-**X-Accel-Redirect mismatch**
-- `USE_X_ACCEL_REDIRECT=true`
-- `X_ACCEL_INTERNAL_PREFIX` must match nginx internal `location`
-- nginx `alias` must point to `/home/cloudpanel/htdocs/download-888vn/storage/files/`
-- Apply `nginx -t && systemctl reload nginx`
+### Admin login succeeds but `/admin/r2` fails
+- check session cookie
+- check `ADMIN_SESSION_SECRET`
+- check CSRF header/body handling in browser requests
 
-**Invalid/expired token or IP-UA mismatch**
-- Token default TTL is short (120s)
-- User must download from same browser/device after captcha verify
-- Reverse proxy must forward real client IP correctly
+### R2 operations fail
+- verify `R2_ENABLED=true`
+- verify account id / access key / secret / bucket
+- inspect container logs
 
-**Missing storage path / file not found**
-- `FILES_STORAGE_PATH` should be absolute in production
-- Confirm file exists exactly as referenced in `files.json`
-- Reload app index after metadata/file changes
+### Reverse proxy issues
+- verify CloudPanel vhost points to `127.0.0.1:3000`
+- verify HTTPS/TLS termination on host
+- verify forwarded headers are preserved
 
-**PM2 diagnostics**
-- `pm2 show download-888vn`
-- stdout: `/var/log/pm2/download-888vn.out.log`
-- stderr: `/var/log/pm2/download-888vn.err.log`
+## 8. Operations
+### Secret rotation
+Rotate and redeploy/restart after changing:
+- `DOWNLOAD_TOKEN_SECRET`
+- `ADMIN_SESSION_SECRET`
+- Turnstile secret
+- hCaptcha secret
+- R2 credentials
 
-### Maintenance
+### Backup scope
+At minimum back up:
+- `.env`
+- `src/data/files.json`
+- container compose/vhost config
 
-**Secret rotation**
-- Rotate `DOWNLOAD_TOKEN_SECRET`, `ADMIN_SESSION_SECRET`, captcha secret keys in `.env`
-- `pm2 restart download-888vn`
-- Re-test admin login, captcha verify, and one download
+### Release/update
+1. pull new code / update stack
+2. rebuild container
+3. restart stack
+4. verify `/health`
+5. test admin login + public download
 
-**Backup / restore**
-- Backup `.env`, `src/data/files.json`, and `storage/files/`
-- Restore to the same paths, then restart PM2
-
-**Release / update**
-1. Backup runtime files
-2. Deploy new code into `app/`
-3. Run `npm install --omit=dev && npm run check`
-4. `pm2 restart download-888vn`
-5. Reload nginx if vhost config changed
+## 9. Compatibility appendix
+These are **legacy compatibility paths only** and not the primary deployment recommendation:
+- PM2-managed runtime
+- local-disk-first storage
+- X-Accel-Redirect-first delivery mode
+- bearer-token-only admin workflow
