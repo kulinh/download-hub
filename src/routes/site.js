@@ -1,6 +1,14 @@
 import express from 'express';
 import { getCaptchaProviderConfig, verifyCaptchaToken } from '../lib/captcha.js';
-import { getFileBySlug, getFiles, reloadFiles, resolveStoragePath } from '../lib/file-store.js';
+import {
+  getAllFiles,
+  getFileBySlug,
+  getFiles,
+  reloadFiles,
+  resolveStoragePath,
+  scanStorageFiles,
+  syncFilesIndexFromDisk
+} from '../lib/file-store.js';
 import { config } from '../lib/config.js';
 import { issueDownloadToken, streamDownload, verifyDownloadToken } from '../lib/download-token.js';
 import { t } from '../lib/i18n.js';
@@ -15,13 +23,103 @@ function pageData(req) {
   return { locale, t: (key) => t(locale, key) };
 }
 
+function attachDisplaySize(item, locale) {
+  return {
+    ...item,
+    displaySize: formatBytes(item.sizeBytes, locale)
+  };
+}
+
 // ── Health check ─────────────────────────────────────────────────────────────
 
 router.get('/health', (_req, res) => {
   res.json({ ok: true, uptime: Math.floor(process.uptime()) });
 });
 
-// ── Admin: reload files index without restart ─────────────────────────────────
+// ── Admin UI + APIs ──────────────────────────────────────────────────────────
+
+router.get('/admin', async (req, res, next) => {
+  try {
+    const { locale, t: translate } = pageData(req);
+    res.render('admin', {
+      locale,
+      t: translate,
+      adminEnabled: Boolean(config.adminBearerToken)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get('/api/admin/files', requireAdminToken, async (req, res, next) => {
+  try {
+    const [entries, scanned] = await Promise.all([
+      getAllFiles(),
+      scanStorageFiles()
+    ]);
+
+    const scannedByPath = new Map(scanned.map((item) => [item.relativePath, item]));
+    const files = entries.map((entry) => {
+      const disk = scannedByPath.get(entry?.storage?.relativePath);
+      return {
+        ...entry,
+        disk: disk ? {
+          exists: true,
+          sizeBytes: disk.sizeBytes,
+          checksumSha256: disk.checksumSha256,
+          mimeType: disk.mimeType,
+          updatedAt: disk.updatedAt,
+          slug: disk.slug
+        } : {
+          exists: false,
+          sizeBytes: null,
+          checksumSha256: null,
+          mimeType: null,
+          updatedAt: null,
+          slug: null
+        }
+      };
+    });
+
+    const extraDiskFiles = scanned
+      .filter((item) => !entries.some((entry) => entry?.storage?.relativePath === item.relativePath))
+      .map((item) => ({
+        relativePath: item.relativePath,
+        sizeBytes: item.sizeBytes,
+        checksumSha256: item.checksumSha256,
+        mimeType: item.mimeType,
+        updatedAt: item.updatedAt,
+        slug: item.slug
+      }));
+
+    res.json({
+      ok: true,
+      files,
+      extraDiskFiles,
+      storagePath: config.filesStoragePath,
+      filesIndexPath: config.filesIndexPath,
+      adminEnabled: Boolean(config.adminBearerToken)
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/api/admin/sync', requireAdminToken, async (req, res, next) => {
+  try {
+    const result = await syncFilesIndexFromDisk();
+    res.json({
+      ok: true,
+      created: result.created,
+      updated: result.updated,
+      unchanged: result.unchanged,
+      scanned: result.scanned,
+      totalEntries: result.entries.length
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.post('/api/admin/reload', requireAdminToken, async (req, res, next) => {
   try {
@@ -49,10 +147,7 @@ router.get('/', async (req, res, next) => {
       locale,
       t: translate,
       provider,
-      files: files.map((item) => ({
-        ...item,
-        displaySize: formatBytes(item.sizeBytes, locale)
-      }))
+      files: files.map((item) => attachDisplaySize(item, locale))
     });
   } catch (error) {
     next(error);
@@ -72,7 +167,8 @@ router.get('/download/:slug', async (req, res, next) => {
       locale,
       t: translate,
       provider,
-      file: { ...fileItem, displaySize: formatBytes(fileItem.sizeBytes, locale) }
+      file: attachDisplaySize(fileItem, locale),
+      cspNonce: res.locals.cspNonce
     });
   } catch (error) {
     next(error);

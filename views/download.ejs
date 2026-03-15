@@ -9,7 +9,13 @@
 </head>
 <body>
   <main class="container narrow">
-    <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
+    <div class="top-bar">
+      <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
+      <nav class="lang-switch small" aria-label="Language selection">
+        <a href="/download/<%= file.slug %>?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>">VI</a>
+        <a href="/download/<%= file.slug %>?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
+      </nav>
+    </div>
     <article class="card detail">
       <h1><%= file.title[locale] || file.title.en %></h1>
       <p><%= file.description[locale] || file.description.en %></p>

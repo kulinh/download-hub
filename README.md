@@ -14,7 +14,7 @@
 - Helmet + per-request CSP nonce cho security headers
 - Cloudflare Turnstile ưu tiên, hCaptcha fallback
 - File thật lưu local và upload qua SFTP vào `storage/files/`
-- Không cần DB, không có admin panel
+- Không cần DB, có admin panel ops tối giản tại `/admin`
 
 ## Tính năng
 
@@ -28,7 +28,7 @@
 - Rate limiting in-process với GC định kỳ (không leak memory)
 - Optional request logging via `LOG_REQUESTS=true`
 - Health check endpoint `/health`
-- Admin reload endpoint `POST /api/admin/reload` (bảo vệ bằng bearer token, optional)
+- Admin ops UI tại `/admin` + các API `POST /api/admin/sync`, `GET /api/admin/files`, `POST /api/admin/reload` (đều bảo vệ bằng bearer token, optional)
 - `robots.txt` và `.well-known/security.txt` tự serve từ Node
 - XSS-safe: result area sau verify dùng DOM API, không `innerHTML`
 
@@ -176,7 +176,36 @@ Import `deploy/nginx-download-888vn.conf` vào CloudPanel vhost custom config.
 
 > **Lưu ý**: CloudPanel quản lý SSL (Let's Encrypt) tự động. Conf file chứa block redirect HTTP→HTTPS nhưng cert paths cần khớp với CloudPanel.
 
-## Admin API
+## Admin API / Admin UI
+
+Set `ADMIN_BEARER_TOKEN` trong `.env`. Để trống = toàn bộ admin UI/API bị disable (trả 403 cho UI gate / 401-403 cho API).
+
+### Admin UI
+
+- Mở `/admin`
+- Nhập đúng bearer token admin
+- Có thể:
+  - xem catalog hiện có trong `src/data/files.json`
+  - đối chiếu file thật trong `storage/files/`
+  - tự đọc `sizeBytes` + `checksumSha256` từ disk
+  - sync/update `files.json`
+  - reload index ngay trên UI
+
+> Token chỉ lưu trong `sessionStorage` của browser hiện tại để gọi các admin API. Không có auth system riêng, vẫn bám bearer-token model hiện có.
+
+### List / inspect admin files
+
+```bash
+curl https://download.888vn.net/api/admin/files \
+  -H "Authorization: Bearer YOUR_ADMIN_BEARER_TOKEN"
+```
+
+### Sync files.json từ disk
+
+```bash
+curl -X POST https://download.888vn.net/api/admin/sync \
+  -H "Authorization: Bearer YOUR_ADMIN_BEARER_TOKEN"
+```
 
 ### Reload files index (không cần restart)
 
@@ -184,8 +213,6 @@ Import `deploy/nginx-download-888vn.conf` vào CloudPanel vhost custom config.
 curl -X POST https://download.888vn.net/api/admin/reload \
   -H "Authorization: Bearer YOUR_ADMIN_BEARER_TOKEN"
 ```
-
-Set `ADMIN_BEARER_TOKEN` trong `.env`. Để trống = endpoint bị disable (trả 403).
 
 ## Health check
 
