@@ -20,7 +20,7 @@ import { createHmacToken, verifyHmacToken } from '../lib/utils.js';
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: 'strict',
-  path: '/admin'
+  path: '/'
 };
 
 const CSRF_HEADER = 'x-admin-csrf';
