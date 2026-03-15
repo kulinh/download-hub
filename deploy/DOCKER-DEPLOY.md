@@ -2,7 +2,7 @@
 
 ## Architecture
 
-```
+```text
 CloudPanel Nginx (host, port 443)
     ↓ reverse-proxy to 127.0.0.1:3000
 Docker container: download-hub-app
@@ -13,9 +13,9 @@ Cloudflare R2 (object storage)
 **Key design choices:**
 - **Runtime**: Docker (Portainer-friendly via `docker-compose.yml`)
 - **Reverse proxy**: CloudPanel Nginx on host (NOT in the stack)
-- **Storage**: Cloudflare R2 (S3-compatible). No local file blob volume in production.
+- **Storage**: Cloudflare R2 (S3-compatible). No local file blob volume in canonical production mode.
 - **Public captcha**: Cloudflare Turnstile
-- **Admin captcha**: hCaptcha (on login page)
+- **Admin captcha**: hCaptcha (on admin login page)
 - **Admin auth**: username + password + hCaptcha → HMAC-signed session cookie
 
 ---
@@ -23,7 +23,7 @@ Cloudflare R2 (object storage)
 ## Prerequisites
 
 - Docker + Docker Compose v2 (or Portainer with Stack support)
-- CloudPanel with a Node.js site for `download.888vn.net` (only for Nginx vhost config)
+- CloudPanel with a vhost / reverse proxy for `download.888vn.net`
 - Cloudflare R2 bucket + API token (Read + Write)
 - Cloudflare Turnstile site/secret key pair
 - hCaptcha site/secret key pair
@@ -55,18 +55,20 @@ ADMIN_SESSION_SECRET=<32+ char random string>
 TURNSTILE_ENABLED=true
 TURNSTILE_SITE_KEY=...
 TURNSTILE_SECRET_KEY=...
+TURNSTILE_ACTION=download_gate
 
 # hCaptcha (admin login)
 HCAPTCHA_ENABLED=true
 HCAPTCHA_SITE_KEY=...
 HCAPTCHA_SECRET_KEY=...
+HCAPTCHA_EXPECTED_HOSTNAME=download.888vn.net
 
 # R2 (production storage)
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=download-888vn-files
+R2_BUCKET=download-hub-files
 ```
 
 ### 2. Build and start
@@ -92,7 +94,6 @@ nginx -t && systemctl reload nginx
 curl -s http://localhost:3000/health
 # Expected: {"ok":true,"uptime":...}
 
-# Or via public URL:
 curl -I https://download.888vn.net/health
 ```
 
@@ -102,56 +103,67 @@ curl -I https://download.888vn.net/health
 
 1. Open Portainer → **Stacks** → **Add stack**
 2. Select **Upload** or paste `docker-compose.yml` content
-3. Add environment variables (from your `.env`) in the **Environment variables** section
+3. Add environment variables from your `.env`
 4. Deploy the stack
 
 ---
 
-## R2 File Workflow
+## Canonical R2 Admin Workflow
+
+### Login to admin
+Use the browser admin entrypoint:
+- `GET /admin/login`
+
+Flow:
+1. Enter **username + password**
+2. Complete **hCaptcha**
+3. Successful login redirects to:
+   - `GET /admin/r2`
 
 ### Upload a file to R2
+From **`/admin/r2`**:
+1. Log in via `/admin/login`
+2. Open the R2 management UI
+3. Click **Upload to R2**
+4. Enter the R2 object key, e.g. `windows/myfile.zip`
+5. Browser uploads via presigned PUT URL
 
-From the **Admin panel** (`/admin`):
-1. Log in with username + password + hCaptcha
-2. Click **Upload to R2…**
-3. Enter the R2 key (e.g. `windows/myfile.zip`)
-4. Select the file → browser PUT directly to R2 via presigned URL
+### Manage catalog / publish flow
+The canonical production workflow is now:
+- upload object to R2
+- use `/admin/r2` session-authenticated UI/APIs to inspect/sync/update metadata
+- publish/unpublish entries from the admin UI
 
-Alternatively, use the AWS CLI / rclone / Cloudflare Dashboard.
+Primary admin API surface:
+- `GET /api/admin/r2/status`
+- `GET /api/admin/r2/files`
+- `POST /api/admin/r2/sync`
+- `POST /api/admin/r2/upload-url`
+- `POST /api/admin/r2/upload-confirm`
+- `PATCH /api/admin/r2/files/:slug/publish`
+- `PATCH /api/admin/r2/files/:slug/metadata`
+- `DELETE /api/admin/r2/files/:slug`
 
-### Register file in catalog
+These APIs are protected by:
+- admin session cookie
+- CSRF checks on mutating requests
 
-After uploading, add an entry to `src/data/files.json`:
+---
 
-```json
-{
-  "id": "my-file",
-  "slug": "my-file",
-  "title": { "vi": "My File", "en": "My File" },
-  "summary": { "vi": "Mô tả", "en": "Description" },
-  "description": { "vi": "...", "en": "..." },
-  "version": "1.0.0",
-  "platform": "Windows",
-  "sizeBytes": 12345678,
-  "checksumSha256": "...",
-  "mimeType": "application/zip",
-  "storage": {
-    "r2Key": "windows/myfile.zip",
-    "relativePath": "windows/myfile.zip",
-    "downloadName": "myfile.zip"
-  },
-  "published": true,
-  "featured": false
-}
-```
+## Validation checklist
 
-Then reload the catalog from admin panel (**Reload app index**) or:
-```bash
-docker exec download-hub-app wget -qO- --post-data='{}' \
-  --header='Content-Type: application/json' \
-  --header='Authorization: Bearer $ADMIN_BEARER_TOKEN' \
-  http://localhost:3000/api/admin/reload
-```
+- `/health` returns 200
+- homepage renders
+- file detail page renders
+- Turnstile appears on public download flow
+- `/admin/login` renders username/password + hCaptcha
+- successful login redirects to `/admin/r2`
+- R2 inventory/status loads in admin UI
+- presigned upload flow works
+- metadata update works
+- publish/unpublish works
+- public download works for a published object
+- expired token returns 403
 
 ---
 
@@ -179,8 +191,8 @@ docker inspect download-hub-app | grep -A5 '"Health"'
 ## Secret Rotation
 
 1. Update `.env` with new secrets
-2. `docker compose up -d` (restarts with new env)
-3. Re-test: `/health`, captcha verify, one real download
+2. `docker compose up -d` (restart with new env)
+3. Re-test `/health`, admin login, public captcha verify, and one real download
 4. Rotate R2 API token in Cloudflare dashboard if needed
 
 ---
@@ -194,14 +206,25 @@ docker compose up -d --build app
 
 ---
 
-## Local Development (without Docker)
+## Local Development (compatibility)
 
 ```bash
 cp .env.example .env
-# Set NODE_ENV=development, R2_ENABLED=false, TURNSTILE_ENABLED=false, HCAPTCHA_ENABLED=false
 npm install
 npm run dev
 ```
 
-Local disk storage (`./storage/files`) is used when `R2_ENABLED=false`.
-Admin panel login uses `ADMIN_USERNAME` / `ADMIN_PASSWORD` from `.env` (hCaptcha skipped in dev if not configured).
+For local dev only, you may disable R2/captcha and use fallback settings. This is not the canonical production mode.
+
+---
+
+## Compatibility Appendix
+
+The following are compatibility / maintenance paths only, not the primary production story:
+- manual editing of `src/data/files.json`
+- legacy bearer-token admin automation
+- local-disk-first storage workflows
+- PM2-managed runtime outside Docker
+- X-Accel-Redirect-first delivery mode
+
+If you keep compatibility automation for maintenance, document it separately and do not treat it as the default production operator path.
