@@ -23,6 +23,12 @@ const COOKIE_OPTIONS = {
   path: '/'
 };
 
+const LEGACY_ADMIN_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: 'strict',
+  path: '/admin'
+};
+
 const CSRF_HEADER = 'x-admin-csrf';
 const CSRF_PARAM = '_csrf';
 
@@ -45,9 +51,16 @@ export function issueAdminSession(res) {
 }
 
 export function clearAdminSession(res) {
+  const secure = config.nodeEnv === 'production';
+
   res.clearCookie(config.admin.cookieName, {
     ...COOKIE_OPTIONS,
-    secure: config.nodeEnv === 'production'
+    secure
+  });
+
+  res.clearCookie(config.admin.cookieName, {
+    ...LEGACY_ADMIN_COOKIE_OPTIONS,
+    secure
   });
 }
 

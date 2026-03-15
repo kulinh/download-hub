@@ -132,6 +132,7 @@ router.post('/admin/login', simpleRateLimit, enforceFormContentType, async (req,
     return res.redirect('/admin/login?error=invalid_credentials');
   }
 
+  clearAdminSession(res);
   issueAdminSession(res);
   res.redirect('/admin/r2?lang=' + locale);
 });

@@ -175,4 +175,28 @@ describe('admin ops routes', () => {
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('csrf_token_invalid');
   });
+
+  it('login clears both root and legacy /admin cookie paths before issuing a fresh session cookie', async () => {
+    const res = await request(app)
+      .post('/admin/login')
+      .type('form')
+      .send({ username: TEST_ADMIN_USER, password: TEST_ADMIN_PASS });
+
+    expect(res.status).toBe(302);
+
+    const setCookie = res.headers['set-cookie'] || [];
+    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('dl888_admin_sess=') && v.includes('Path=/;') && !v.includes('dl888_admin_sess=;'))).toBe(true);
+  });
+
+  it('logout clears both root and legacy /admin cookie paths', async () => {
+    const res = await request(app).post('/admin/logout');
+
+    expect(res.status).toBe(302);
+
+    const setCookie = res.headers['set-cookie'] || [];
+    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
+  });
 });
