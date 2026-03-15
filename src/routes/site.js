@@ -8,6 +8,7 @@ import {
 import { config } from '../lib/config.js';
 import { issueDownloadToken, streamDownload, verifyDownloadToken } from '../lib/download-token.js';
 import { t } from '../lib/i18n.js';
+import { getStorageObjectKey } from '../lib/storage-metadata.js';
 import { buildBaseUrl, formatBytes, getServerName, pickLocale, publicError } from '../lib/utils.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
 import { enforceFormContentType } from '../middleware/security.js';
@@ -27,17 +28,9 @@ function attachDisplaySize(item, locale) {
   };
 }
 
-// ── Health check ─────────────────────────────────────────────────────────────
-
 router.get('/health', (_req, res) => {
   res.json({ ok: true, uptime: Math.floor(process.uptime()) });
 });
-
-// ── Admin: Login page ─────────────────────────────────────────────────────────
-// Admin UI is handled in routes/admin.js in the new architecture. This file
-// keeps only public download flows.
-
-// ── Public pages ──────────────────────────────────────────────────────────────
 
 router.get('/', async (req, res, next) => {
   try {
@@ -81,8 +74,6 @@ router.get('/download/:slug', async (req, res, next) => {
   }
 });
 
-// ── API: verify captcha (Turnstile), issue download token ─────────────────────
-
 router.post('/api/verify/:slug', simpleRateLimit, enforceFormContentType, async (req, res, next) => {
   try {
     const locale = pickLocale(req, config.allowedLocales);
@@ -114,8 +105,6 @@ router.post('/api/verify/:slug', simpleRateLimit, enforceFormContentType, async 
   }
 });
 
-// ── Download endpoint ─────────────────────────────────────────────────────────
-
 router.get('/files/:slug', async (req, res, next) => {
   try {
     const locale = pickLocale(req, config.allowedLocales);
@@ -135,8 +124,7 @@ router.get('/files/:slug', async (req, res, next) => {
       );
     }
 
-    // R2 path: absolutePath not needed
-    if (isR2Enabled() && (fileItem.storage?.r2Key || fileItem.storage?.relativePath)) {
+    if (isR2Enabled() && getStorageObjectKey(fileItem)) {
       return await streamDownload(fileItem, req, res, null);
     }
 

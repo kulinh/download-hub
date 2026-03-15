@@ -91,10 +91,6 @@ See:
 - `deploy/portainer-stack.portainer-friendly.yml`
 - `deploy/MIGRATION-CHECKLIST.md`
 - `deploy/MIGRATION-SCRIPTS.md`
-- `deploy/CUTOVER-RUNBOOK-ALPHA.md`
-- `deploy/ALPHA-MIGRATION-COMMANDS.md`
-- `deploy/ALPHA-CUTOVER-COPYPASTE.md`
-- `.env.production.alpha.template`
 - `deploy/RELEASE-HANDOFF.md`
 
 ## Required production env
@@ -102,8 +98,8 @@ Minimum required values:
 
 ```env
 NODE_ENV=production
-APP_BASE_URL=https://download.888vn.net
-APP_HOSTNAME=download.888vn.net
+APP_BASE_URL=https://downloads.example.com
+APP_HOSTNAME=downloads.example.com
 DOWNLOAD_TOKEN_SECRET=<long-random-secret>
 
 ADMIN_USERNAME=<admin-user>
@@ -118,13 +114,13 @@ TURNSTILE_ACTION=download_gate
 HCAPTCHA_ENABLED=true
 HCAPTCHA_SITE_KEY=...
 HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=download.888vn.net
+HCAPTCHA_EXPECTED_HOSTNAME=downloads.example.com
 
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=download-hub-files
+R2_BUCKET=your-r2-bucket-name
 ```
 
 ## Docker quick start
@@ -148,7 +144,7 @@ CloudPanel is **not** the app runtime manager in the canonical model.
 It only terminates HTTPS and proxies traffic to the container.
 
 Use the nginx sample in:
-- `deploy/nginx-download-888vn.conf`
+- `deploy/nginx-download-hub.conf`
 
 ## Admin workflow
 1. Visit `/admin/login`

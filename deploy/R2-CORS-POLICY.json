@@ -1,7 +1,7 @@
 [
   {
     "AllowedOrigins": [
-      "https://download.888vn.net"
+      "https://downloads.example.com"
     ],
     "AllowedMethods": ["PUT", "HEAD"],
     "AllowedHeaders": ["content-type", "x-amz-*"],

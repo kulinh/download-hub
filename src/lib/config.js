@@ -49,9 +49,10 @@ export function buildConfig(env = process.env) {
     nodeEnv: env.NODE_ENV || 'development',
     appBaseUrl: env.APP_BASE_URL || 'http://localhost:3000',
     appHostname: env.APP_HOSTNAME || 'localhost',
+    appDisplayName: env.APP_DISPLAY_NAME || 'Download Hub',
     trustProxy: parseTrustProxy(env.TRUST_PROXY),
     downloadTokenSecret: env.DOWNLOAD_TOKEN_SECRET || 'dev-secret-change-me',
-    sessionCookieName: env.SESSION_COOKIE_NAME || 'dl888_session',
+    sessionCookieName: env.SESSION_COOKIE_NAME || 'download_hub_session',
     sessionTtlSeconds: toInt(env.SESSION_TTL_SECONDS, 1200),
     downloadTokenTtlSeconds: toInt(env.DOWNLOAD_TOKEN_TTL_SECONDS, 120),
     maxBodySize: env.MAX_BODY_SIZE || '20kb',
@@ -60,35 +61,25 @@ export function buildConfig(env = process.env) {
     filesStoragePath: path.isAbsolute(storagePathRaw)
       ? storagePathRaw
       : path.resolve(rootDir, storagePathRaw),
-
-    // ── Cloudflare Turnstile (public download flow) ───────────────────────
     turnstile: {
       enabled: toBool(env.TURNSTILE_ENABLED, true),
       siteKey: env.TURNSTILE_SITE_KEY || '',
       secretKey: env.TURNSTILE_SECRET_KEY || '',
       action: env.TURNSTILE_ACTION || 'download_gate'
     },
-
-    // ── hCaptcha (admin panel hard-auth) ──────────────────────────────────
     hcaptcha: {
       enabled: toBool(env.HCAPTCHA_ENABLED, false),
       siteKey: env.HCAPTCHA_SITE_KEY || '',
       secretKey: env.HCAPTCHA_SECRET_KEY || '',
       expectedHostname: env.HCAPTCHA_EXPECTED_HOSTNAME || env.APP_HOSTNAME || 'localhost'
     },
-
-    // ── Admin hard auth ──────────────────────────────────────────────────
-    // Admin login requires: correct username + password (from env) + valid hCaptcha
     admin: {
       username: env.ADMIN_USERNAME || '',
       password: env.ADMIN_PASSWORD || '',
-      // Session secret for signing admin session cookies
       sessionSecret: env.ADMIN_SESSION_SECRET || env.DOWNLOAD_TOKEN_SECRET || 'dev-secret-change-me',
       sessionTtlSeconds: toInt(env.ADMIN_SESSION_TTL_SECONDS, 3600),
-      cookieName: env.ADMIN_COOKIE_NAME || 'dl888_admin_sess'
+      cookieName: env.ADMIN_COOKIE_NAME || 'download_hub_admin_sess'
     },
-
-    // ── Cloudflare R2 (S3-compatible object storage) ─────────────────────
     r2: {
       enabled: toBool(env.R2_ENABLED, false),
       accountId: env.R2_ACCOUNT_ID || '',
@@ -96,14 +87,11 @@ export function buildConfig(env = process.env) {
       secretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
       bucket: env.R2_BUCKET || ''
     },
-
     useXAccelRedirect: toBool(env.USE_X_ACCEL_REDIRECT, false),
     xAccelInternalPrefix: env.X_ACCEL_INTERNAL_PREFIX || '/protected-downloads',
     rateLimitWindowSeconds: toInt(env.RATE_LIMIT_WINDOW_SECONDS, 300),
     rateLimitMaxAttempts: toInt(env.RATE_LIMIT_MAX_ATTEMPTS, 20),
     logRequests: toBool(env.LOG_REQUESTS, false),
-
-    // Legacy: simple bearer token for /api/admin/reload (kept for backward compat)
     adminBearerToken: env.ADMIN_BEARER_TOKEN || ''
   };
 
@@ -113,24 +101,18 @@ export function buildConfig(env = process.env) {
     if (!cfg.downloadTokenSecret || isPlaceholderSecret(cfg.downloadTokenSecret)) {
       throw new Error('DOWNLOAD_TOKEN_SECRET is required and must not be a placeholder in production');
     }
-    // Public flow requires Turnstile
     if (!cfg.turnstile.enabled || !cfg.turnstile.siteKey || !cfg.turnstile.secretKey) {
       throw new Error('Cloudflare Turnstile (TURNSTILE_ENABLED, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY) must be configured in production');
     }
-    // Admin panel requires hCaptcha
     if (!cfg.hcaptcha.enabled || !cfg.hcaptcha.siteKey || !cfg.hcaptcha.secretKey) {
       throw new Error('hCaptcha (HCAPTCHA_ENABLED, HCAPTCHA_SITE_KEY, HCAPTCHA_SECRET_KEY) must be configured in production for admin panel');
     }
-    // Admin hard auth credentials required
     if (!cfg.admin.username || !cfg.admin.password) {
       throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be set in production');
     }
-    // R2 must be configured in production (no local-disk fallback)
     if (!cfg.r2.enabled || !cfg.r2.accountId || !cfg.r2.bucket) {
       throw new Error('Cloudflare R2 (R2_ENABLED, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) must be configured in production');
     }
-
-    // Legacy bearer token admin mode is disabled in production
     cfg.adminBearerToken = '';
   }
 

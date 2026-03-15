@@ -1,22 +1,7 @@
-/**
- * r2-storage.js — Cloudflare R2 (S3-compatible) storage adapter
- *
- * Responsibilities:
- *   - Stream file objects directly from R2 to HTTP response
- *   - Generate short-lived presigned GET URLs (for admin upload workflow)
- *   - Generate presigned PUT URLs (admin panel R2 upload)
- *
- * Context7 findings (@aws-sdk/client-s3 + @aws-sdk/s3-request-presigner):
- *   - R2 requires endpoint override: https://<account_id>.r2.cloudflarestorage.com
- *   - Region must be 'auto' for Cloudflare R2
- *   - GetObjectCommand + getSignedUrl for presigned downloads
- *   - PutObjectCommand + getSignedUrl for presigned uploads (admin)
- *   - S3Client is singleton; safe to share across requests
- */
-
 import { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from './config.js';
+import { getStorageDownloadName, getStorageObjectKey } from './storage-metadata.js';
 
 let _r2Client = null;
 
@@ -39,13 +24,9 @@ function getR2Client() {
   return _r2Client;
 }
 
-/**
- * Stream an R2 object directly to the HTTP response.
- * Sets Content-Type, Content-Disposition, Content-Length when available.
- */
 export async function streamFromR2(fileItem, res) {
   const client = getR2Client();
-  const key = fileItem.storage?.r2Key || fileItem.storage?.relativePath;
+  const key = getStorageObjectKey(fileItem);
 
   if (!key) {
     const err = new Error('File has no R2 key configured');
@@ -64,10 +45,7 @@ export async function streamFromR2(fileItem, res) {
   if (response.ContentLength) {
     res.setHeader('Content-Length', response.ContentLength);
   }
-  res.setHeader(
-    'Content-Disposition',
-    `attachment; filename="${sanitizeFilename(fileItem.storage.downloadName || key)}"`
-  );
+  res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(getStorageDownloadName(fileItem) || key)}"`);
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -85,10 +63,6 @@ export async function streamFromR2(fileItem, res) {
   });
 }
 
-/**
- * Generate a presigned GET URL for admin preview / direct download link.
- * Default TTL: 300 seconds (short-lived, internal use).
- */
 export async function getPresignedDownloadUrl(r2Key, expiresIn = 300) {
   const client = getR2Client();
   const command = new GetObjectCommand({
@@ -98,10 +72,6 @@ export async function getPresignedDownloadUrl(r2Key, expiresIn = 300) {
   return getSignedUrl(client, command, { expiresIn });
 }
 
-/**
- * Generate a presigned PUT URL for admin panel direct-to-R2 upload.
- * Default TTL: 900 seconds.
- */
 export async function getPresignedUploadUrl(r2Key, contentType, expiresIn = 900) {
   const client = getR2Client();
   const command = new PutObjectCommand({
@@ -115,10 +85,6 @@ export async function getPresignedUploadUrl(r2Key, contentType, expiresIn = 900)
   });
 }
 
-/**
- * Check if an R2 object exists and return its metadata.
- * Returns null if the object does not exist.
- */
 export async function headR2Object(r2Key) {
   const client = getR2Client();
   try {
@@ -142,11 +108,6 @@ export async function headR2Object(r2Key) {
   }
 }
 
-/**
- * List objects in the R2 bucket using S3 ListObjectsV2.
- * Returns an array of { key, sizeBytes, lastModified } objects.
- * Returns [] if R2 is not enabled.
- */
 export async function listR2Objects(prefix = '', maxKeys = 1000) {
   if (!isR2Enabled()) return [];
   const client = getR2Client();
@@ -164,9 +125,6 @@ export async function listR2Objects(prefix = '', maxKeys = 1000) {
   }));
 }
 
-/**
- * Whether R2 storage is configured and enabled.
- */
 export function isR2Enabled() {
   return Boolean(config.r2?.enabled && config.r2?.accountId && config.r2?.bucket);
 }

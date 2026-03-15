@@ -26,6 +26,7 @@
 import express from 'express';
 import path from 'node:path';
 import { config } from '../lib/config.js';
+import { getStorageDownloadName, getStorageObjectKey, normalizeObjectKey } from '../lib/storage-metadata.js';
 import { getHcaptchaConfig, verifyHcaptchaToken } from '../lib/captcha.js';
 import { enforceFormContentType, enforceJsonContentType } from '../middleware/security.js';
 import {
@@ -50,7 +51,6 @@ import {
 import { pickLocale } from '../lib/utils.js';
 import { t } from '../lib/i18n.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
-import { requireAdminToken } from '../middleware/security.js';
 
 const router = express.Router();
 
@@ -190,7 +190,7 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
     // Build a merged view
     const catalogByR2Key = new Map();
     for (const entry of catalogRaw) {
-      const key = entry?.r2?.key || entry?.storage?.relativePath || entry.slug;
+      const key = getStorageObjectKey(entry) || entry.slug;
       if (key) catalogByR2Key.set(key, entry);
     }
 
@@ -211,17 +211,24 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
         published: Boolean(catalog?.published),
         featured: Boolean(catalog?.featured),
         updatedAt: catalog?.updatedAt || obj.lastModified,
-        r2: { key: obj.key },
+        storage: {
+          objectKey: obj.key,
+          r2Key: obj.key,
+          relativePath: catalog?.storage?.relativePath || obj.key,
+          downloadName: getStorageDownloadName(catalog || { storage: { objectKey: obj.key } })
+        },
+        r2: { key: obj.key, downloadName: getStorageDownloadName(catalog || { storage: { objectKey: obj.key } }) },
         inCatalog: Boolean(catalog)
       });
     }
 
     // Also include catalog entries that no longer exist in R2 (orphans)
     for (const entry of catalogRaw) {
-      if (!entry?.r2?.key) continue;
-      if (!r2Objects.some((o) => o.key === entry.r2.key)) {
+      const entryKey = getStorageObjectKey(entry);
+      if (!entryKey) continue;
+      if (!r2Objects.some((o) => o.key === entryKey)) {
         files.push({
-          r2Key: entry.r2.key,
+          r2Key: entryKey,
           sizeBytes: entry.sizeBytes || 0,
           lastModified: entry.updatedAt || null,
           slug: entry.slug,
@@ -232,7 +239,8 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
           published: Boolean(entry.published),
           featured: Boolean(entry.featured),
           updatedAt: entry.updatedAt,
-          r2: entry.r2,
+          storage: entry.storage,
+          r2: { ...(entry.r2 || {}), key: entryKey, downloadName: getStorageDownloadName(entry) },
           inCatalog: true,
           r2Missing: true
         });
@@ -258,7 +266,7 @@ router.post('/api/admin/r2/sync', requireAdminSession, enforceJsonContentType, a
       getAllFiles()
     ]);
 
-    const byR2Key = new Map(existing.map((e) => [e?.r2?.key, e]).filter(([k]) => k));
+    const byR2Key = new Map(existing.map((e) => [getStorageObjectKey(e), e]).filter(([k]) => k));
     const updated = [...existing];
     let created = 0;
     let updatedCount = 0;
@@ -283,6 +291,12 @@ router.post('/api/admin/r2/sync', requireAdminSession, enforceJsonContentType, a
           sizeBytes: obj.sizeBytes,
           checksumSha256: '',
           mimeType: 'application/octet-stream',
+          storage: {
+            objectKey: obj.key,
+            r2Key: obj.key,
+            relativePath: obj.key,
+            downloadName: path.basename(obj.key)
+          },
           r2: { key: obj.key, downloadName: path.basename(obj.key) },
           published: false,
           featured: false,
@@ -311,7 +325,7 @@ router.delete('/api/admin/r2/files/:slug', requireAdminSession, async (req, res,
     if (idx < 0) return res.status(404).json({ ok: false, error: 'not_found' });
 
     const entry = catalog[idx];
-    const r2Key = entry?.r2?.key;
+    const r2Key = getStorageObjectKey(entry);
 
     // Delete from R2 if configured and key present
     if (isR2Configured() && r2Key) {
@@ -381,7 +395,7 @@ router.post('/api/admin/r2/upload-url', requireAdminSession, enforceJsonContentT
     const { filename, contentType } = req.body || {};
     if (!filename) return res.status(400).json({ ok: false, error: 'filename_required' });
 
-    const r2Key = String(filename).replace(/\.\./g, '').replace(/^\/+/, '');
+    const r2Key = normalizeObjectKey(String(filename).replace(/\.\./g, '').replace(/^\/+/, ''));
     const uploadUrl = await getSdkPresignedUploadUrl(r2Key, contentType || 'application/octet-stream', 900);
     res.json({ ok: true, uploadUrl, r2Key });
   } catch (err) {
@@ -397,7 +411,7 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
     if (!r2Key) return res.status(400).json({ ok: false, error: 'r2key_required' });
 
     const catalog = await getAllFiles();
-    const existing = catalog.find((e) => e?.r2?.key === r2Key);
+    const existing = catalog.find((e) => getStorageObjectKey(e) === r2Key);
     if (!existing) {
       const slug = slugify(path.basename(r2Key));
       catalog.push({
@@ -412,6 +426,12 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
         sizeBytes: sizeBytes || 0,
         checksumSha256: '',
         mimeType: contentType || 'application/octet-stream',
+        storage: {
+          objectKey: r2Key,
+          r2Key,
+          relativePath: r2Key,
+          downloadName: filename || path.basename(r2Key)
+        },
         r2: { key: r2Key, downloadName: filename || path.basename(r2Key) },
         published: false,
         featured: false,
@@ -421,6 +441,19 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
       });
     } else {
       existing.sizeBytes = sizeBytes || existing.sizeBytes;
+      existing.mimeType = contentType || existing.mimeType;
+      existing.storage = {
+        ...(existing.storage || {}),
+        objectKey: r2Key,
+        r2Key,
+        relativePath: existing.storage?.relativePath || r2Key,
+        downloadName: filename || existing.storage?.downloadName || path.basename(r2Key)
+      };
+      existing.r2 = {
+        ...(existing.r2 || {}),
+        key: r2Key,
+        downloadName: filename || existing.r2?.downloadName || path.basename(r2Key)
+      };
       existing.updatedAt = new Date().toISOString();
     }
 

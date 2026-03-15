@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
-import { createHmacToken, verifyHmacToken } from './utils.js';
 import { isR2Enabled, streamFromR2 } from './r2-storage.js';
+import { getStorageDownloadName, getStorageObjectKey } from './storage-metadata.js';
+import { createHmacToken, verifyHmacToken } from './utils.js';
 
-// Derive keyed digests for IP/UA to avoid raw base64 encoding
 function hmacDigest(value) {
   return crypto.createHmac('sha256', config.downloadTokenSecret)
     .update(String(value))
@@ -33,30 +33,15 @@ export function verifyDownloadToken(token, req) {
   return { valid: true, payload };
 }
 
-/**
- * Stream a file download to the HTTP response.
- *
- * Priority:
- *   1. If R2 is enabled and file has an r2Key → stream from R2
- *   2. If USE_X_ACCEL_REDIRECT → Nginx X-Accel-Redirect (local disk via Nginx)
- *   3. Fallback: direct Node.js res.sendFile (local disk)
- *
- * @param {object} fileItem  — catalog entry
- * @param {object} req       — Express request
- * @param {object} res       — Express response
- * @param {string|null} absolutePath — local disk path (may be null if R2-only)
- */
 export async function streamDownload(fileItem, req, res, absolutePath) {
-  // ── R2 path ──────────────────────────────────────────────────────────────
-  if (isR2Enabled() && (fileItem.storage?.r2Key || fileItem.storage?.relativePath)) {
+  if (isR2Enabled() && getStorageObjectKey(fileItem)) {
     return streamFromR2(fileItem, res);
   }
 
-  // ── Local disk paths ─────────────────────────────────────────────────────
   const stat = await fs.stat(absolutePath);
   res.setHeader('Content-Type', fileItem.mimeType || 'application/octet-stream');
   res.setHeader('Content-Length', stat.size);
-  res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(fileItem.storage.downloadName)}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(getStorageDownloadName(fileItem))}"`);
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');

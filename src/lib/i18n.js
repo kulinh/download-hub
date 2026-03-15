@@ -1,6 +1,6 @@
 export const messages = {
   vi: {
-    siteTitle: 'Kho tải xuống 888VN',
+    siteTitle: 'Download Hub',
     siteDescription: 'Tải file công khai sau khi xác minh captcha. Không có hotlink trực tiếp.',
     verifyAndDownload: 'Xác minh để tải',
     directDownload: 'Tải xuống',
@@ -59,7 +59,7 @@ export const messages = {
     storageCloudflareR2: 'Cloudflare R2'
   },
   en: {
-    siteTitle: '888VN Download Hub',
+    siteTitle: 'Download Hub Template',
     siteDescription: 'Public downloads unlocked after captcha verification. No direct hotlinking.',
     verifyAndDownload: 'Verify to download',
     directDownload: 'Download',
@@ -108,7 +108,7 @@ export const messages = {
     adminLogout: 'Sign out',
     r2StorageLabel: 'R2 Storage',
     r2InventoryTitle: 'R2 Storage — File Catalog',
-    r2NotConfigured: 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME in .env.',
+    r2NotConfigured: 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET in .env.',
     publishLabel: 'Publish',
     unpublishLabel: 'Unpublish',
     deleteConfirm: 'Are you sure you want to delete this file? This cannot be undone.',

@@ -22,7 +22,9 @@
     "mimeType": "application/zip",
     "storage": {
       "relativePath": "windows/win-toolkit-v1.zip",
-      "downloadName": "888vn-windows-toolkit-v1.zip"
+      "objectKey": "windows/win-toolkit-v1.zip",
+      "r2Key": "windows/win-toolkit-v1.zip",
+      "downloadName": "windows-toolkit-v1.zip"
     },
     "published": true,
     "featured": true,
@@ -54,7 +56,9 @@
     "mimeType": "application/zip",
     "storage": {
       "relativePath": "android/android-pack-v2.zip",
-      "downloadName": "888vn-android-pack-v2.zip"
+      "objectKey": "android/android-pack-v2.zip",
+      "r2Key": "android/android-pack-v2.zip",
+      "downloadName": "android-pack-v2.zip"
     },
     "published": false,
     "featured": false,

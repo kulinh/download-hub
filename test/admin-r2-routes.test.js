@@ -63,7 +63,7 @@ describe('admin R2 routes', () => {
       ADMIN_PASSWORD: TEST_ADMIN_PASS,
       ADMIN_SESSION_SECRET: TEST_SESSION_SECRET,
       ADMIN_SESSION_TTL_SECONDS: '3600',
-      ADMIN_COOKIE_NAME: 'dl888_admin_sess',
+      ADMIN_COOKIE_NAME: 'download_hub_admin_sess',
       ADMIN_BEARER_TOKEN: 'admin-secret',
       FILES_INDEX_PATH: indexPath,
       R2_ENABLED: 'true',
@@ -94,7 +94,7 @@ describe('admin R2 routes', () => {
     const sessionToken = makeValidAdminCookie();
     const res = await request(app)
       .get('/api/admin/r2/files')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -107,7 +107,7 @@ describe('admin R2 routes', () => {
     const csrfToken = csrfFromSession(sessionToken);
     const res = await request(app)
       .post('/api/admin/r2/upload-url')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', csrfToken)
       .send({ filename: 'bar.exe', contentType: 'application/vnd.microsoft.portable-executable' });
 
@@ -122,7 +122,7 @@ describe('admin R2 routes', () => {
     const csrfToken = csrfFromSession(sessionToken);
     const res = await request(app)
       .post('/api/admin/r2/upload-url')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', csrfToken)
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send('filename=bar.exe');
@@ -136,7 +136,7 @@ describe('admin R2 routes', () => {
     const csrfToken = csrfFromSession(sessionToken);
     const res = await request(app)
       .patch('/api/admin/r2/files/foo/publish')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', csrfToken)
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send('published=true');
@@ -160,6 +160,7 @@ describe('admin R2 routes', () => {
         sizeBytes: 10,
         checksumSha256: '0'.repeat(64),
         mimeType: 'application/octet-stream',
+        storage: { objectKey: 'foo.apk', r2Key: 'foo.apk', relativePath: 'foo.apk', downloadName: 'foo.apk' },
         r2: { key: 'foo.apk', downloadName: 'foo.apk' },
         published: true,
         featured: false,
@@ -174,7 +175,7 @@ describe('admin R2 routes', () => {
     const csrfToken = csrfFromSession(sessionToken);
     const res = await request(app)
       .delete('/api/admin/r2/files/foo')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', csrfToken);
 
     expect(res.status).toBe(200);

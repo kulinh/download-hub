@@ -65,8 +65,8 @@ Important:
 Minimum production values:
 
 ```env
-APP_BASE_URL=https://download.888vn.net
-APP_HOSTNAME=download.888vn.net
+APP_BASE_URL=https://downloads.example.com
+APP_HOSTNAME=downloads.example.com
 NODE_ENV=production
 TRUST_PROXY=loopback
 APP_PORT=3000
@@ -86,7 +86,7 @@ TURNSTILE_ACTION=download_gate
 HCAPTCHA_ENABLED=true
 HCAPTCHA_SITE_KEY=...
 HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=download.888vn.net
+HCAPTCHA_EXPECTED_HOSTNAME=downloads.example.com
 
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=<strong-password>
@@ -98,7 +98,7 @@ R2_ENABLED=true
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=download-hub-files
+R2_BUCKET=your-r2-bucket-name
 
 DOWNLOAD_HUB_DATA_DIR=/opt/download-hub/data
 USE_X_ACCEL_REDIRECT=false
@@ -125,7 +125,7 @@ CloudPanel remains the HTTPS entrypoint and should proxy to:
 - `http://127.0.0.1:3000`
 
 Use:
-- `deploy/nginx-download-888vn.conf`
+- `deploy/nginx-download-hub.conf`
 
 This stays aligned with the stack because the container only binds to localhost:
 - `127.0.0.1:3000:3000`
@@ -138,7 +138,7 @@ After stack deploy, verify:
 
 ```bash
 curl -s http://127.0.0.1:3000/health
-curl -I https://download.888vn.net/health
+curl -I https://downloads.example.com/health
 ```
 
 Expected operator checks:

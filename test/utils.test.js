@@ -97,3 +97,19 @@ describe('demo scaffold — files.json catalog truthfulness', () => {
     expect(entries.length).toBeGreaterThan(0);
   });
 });
+
+
+describe('template branding neutrality', () => {
+  it('sample catalog uses neutral download names and explicit object keys', async () => {
+    const raw = await fs.readFile(
+      path.resolve(process.cwd(), 'src/data/files.json'),
+      'utf8'
+    );
+    const entries = JSON.parse(raw);
+
+    for (const entry of entries) {
+      expect(entry.storage?.objectKey, `entry "${entry.id}" must declare storage.objectKey`).toBeTruthy();
+      expect(entry.storage?.downloadName || '', `entry "${entry.id}" downloadName should be neutral`).not.toMatch(/888vn/i);
+    }
+  });
+});

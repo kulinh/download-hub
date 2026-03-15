@@ -12,7 +12,7 @@ This file is the **canonical deployment guide** for `download-hub`.
 
 ## 1. Prerequisites
 - Docker + Docker Compose v2, or Portainer Stack support
-- CloudPanel site / vhost for `download.888vn.net`
+- CloudPanel site / vhost for `downloads.example.com`
 - Cloudflare R2 bucket and API credentials
 - Turnstile site/secret key
 - hCaptcha site/secret key
@@ -26,8 +26,8 @@ cp .env.example .env
 Required production values:
 ```env
 NODE_ENV=production
-APP_BASE_URL=https://download.888vn.net
-APP_HOSTNAME=download.888vn.net
+APP_BASE_URL=https://downloads.example.com
+APP_HOSTNAME=downloads.example.com
 DOWNLOAD_TOKEN_SECRET=<long-random-secret>
 
 ADMIN_USERNAME=<admin-user>
@@ -42,13 +42,13 @@ TURNSTILE_ACTION=download_gate
 HCAPTCHA_ENABLED=true
 HCAPTCHA_SITE_KEY=...
 HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=download.888vn.net
+HCAPTCHA_EXPECTED_HOSTNAME=downloads.example.com
 
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=download-hub-files
+R2_BUCKET=your-r2-bucket-name
 ```
 
 ## 3. Deploy with Docker Compose

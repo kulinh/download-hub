@@ -91,7 +91,7 @@ describe('admin ops routes', () => {
       ADMIN_PASSWORD: TEST_ADMIN_PASS,
       ADMIN_SESSION_SECRET: TEST_SESSION_SECRET,
       ADMIN_SESSION_TTL_SECONDS: '3600',
-      ADMIN_COOKIE_NAME: 'dl888_admin_sess',
+      ADMIN_COOKIE_NAME: 'download_hub_admin_sess',
       ADMIN_BEARER_TOKEN: 'admin-secret',
       FILES_STORAGE_PATH: storageDir,
       FILES_INDEX_PATH: indexPath
@@ -110,7 +110,7 @@ describe('admin ops routes', () => {
     const sessionToken = makeValidAdminCookie();
     const res = await request(app)
       .get('/api/admin/files')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -125,7 +125,7 @@ describe('admin ops routes', () => {
     const csrfToken = makeCsrfToken(sessionToken);
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', csrfToken)
       .set('Content-Type', 'application/json')
       .send('{}');
@@ -147,7 +147,7 @@ describe('admin ops routes', () => {
     const csrfToken = makeCsrfToken(sessionToken);
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', csrfToken)
       .set('Content-Type', 'application/json')
       .send('{}');
@@ -167,7 +167,7 @@ describe('admin ops routes', () => {
     const sessionToken = makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
       .set('X-CSRF-Token', 'invalid-csrf-token')
       .set('Content-Type', 'application/json')
       .send('{}');
@@ -185,9 +185,9 @@ describe('admin ops routes', () => {
     expect(res.status).toBe(302);
 
     const setCookie = res.headers['set-cookie'] || [];
-    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
-    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
-    expect(setCookie.some((v) => v.includes('dl888_admin_sess=') && v.includes('Path=/;') && !v.includes('dl888_admin_sess=;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=') && v.includes('Path=/;') && !v.includes('download_hub_admin_sess=;'))).toBe(true);
   });
 
   it('logout clears both root and legacy /admin cookie paths', async () => {
@@ -196,7 +196,7 @@ describe('admin ops routes', () => {
     expect(res.status).toBe(302);
 
     const setCookie = res.headers['set-cookie'] || [];
-    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
-    expect(setCookie.some((v) => v.includes('dl888_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
+    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
   });
 });

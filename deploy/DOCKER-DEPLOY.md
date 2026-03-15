@@ -23,7 +23,7 @@ Cloudflare R2 (object storage)
 ## Prerequisites
 
 - Docker + Docker Compose v2 (or Portainer with Stack support)
-- CloudPanel with a vhost / reverse proxy for `download.888vn.net`
+- CloudPanel with a vhost / reverse proxy for `downloads.example.com`
 - Cloudflare R2 bucket + API token (Read + Write)
 - Cloudflare Turnstile site/secret key pair
 - hCaptcha site/secret key pair
@@ -42,8 +42,8 @@ cp .env.example .env
 Minimum required for production:
 ```env
 NODE_ENV=production
-APP_BASE_URL=https://download.888vn.net
-APP_HOSTNAME=download.888vn.net
+APP_BASE_URL=https://downloads.example.com
+APP_HOSTNAME=downloads.example.com
 DOWNLOAD_TOKEN_SECRET=<32+ char random string>
 
 # Admin hard auth
@@ -61,14 +61,14 @@ TURNSTILE_ACTION=download_gate
 HCAPTCHA_ENABLED=true
 HCAPTCHA_SITE_KEY=...
 HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=download.888vn.net
+HCAPTCHA_EXPECTED_HOSTNAME=downloads.example.com
 
 # R2 (production storage)
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
 R2_SECRET_ACCESS_KEY=...
-R2_BUCKET=download-hub-files
+R2_BUCKET=your-r2-bucket-name
 ```
 
 ### 2. Build and start
@@ -81,7 +81,7 @@ Or import `docker-compose.yml` as a **Stack** in Portainer.
 
 ### 3. Configure CloudPanel Nginx
 
-Paste the contents of `deploy/nginx-download-888vn.conf` into the site's **Vhost** config in CloudPanel.
+Paste the contents of `deploy/nginx-download-hub.conf` into the site's **Vhost** config in CloudPanel.
 
 Then:
 ```bash
@@ -94,7 +94,7 @@ nginx -t && systemctl reload nginx
 curl -s http://localhost:3000/health
 # Expected: {"ok":true,"uptime":...}
 
-curl -I https://download.888vn.net/health
+curl -I https://downloads.example.com/health
 ```
 
 ---

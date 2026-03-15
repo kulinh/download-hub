@@ -2,19 +2,22 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
+import { normalizeFileEntries } from './storage-metadata.js';
 
 let cachedFiles = null;
+let cachedFilesIndexPath = null;
 
 async function loadFiles() {
   const raw = await fs.readFile(config.filesIndexPath, 'utf8');
-  const parsed = JSON.parse(raw);
+  const parsed = normalizeFileEntries(JSON.parse(raw));
+  cachedFilesIndexPath = config.filesIndexPath;
   cachedFiles = parsed.filter((item) => item.published);
   return cachedFiles;
 }
 
 export async function readRawFilesIndex() {
   const raw = await fs.readFile(config.filesIndexPath, 'utf8');
-  const parsed = JSON.parse(raw);
+  const parsed = normalizeFileEntries(JSON.parse(raw));
   if (!Array.isArray(parsed)) {
     throw new Error('files.json must contain an array');
   }
@@ -22,14 +25,19 @@ export async function readRawFilesIndex() {
 }
 
 export async function writeRawFilesIndex(entries) {
-  const serialized = `${JSON.stringify(entries, null, 2)}\n`;
+  const normalizedEntries = normalizeFileEntries(entries);
+  const serialized = `${JSON.stringify(normalizedEntries, null, 2)}\n`;
   await fs.writeFile(config.filesIndexPath, serialized, 'utf8');
-  cachedFiles = entries.filter((item) => item.published);
-  return entries;
+  cachedFilesIndexPath = config.filesIndexPath;
+  cachedFiles = normalizedEntries.filter((item) => item.published);
+  return normalizedEntries;
 }
 
 export async function getFiles() {
-  return cachedFiles || loadFiles();
+  if (!cachedFiles || cachedFilesIndexPath !== config.filesIndexPath) {
+    return loadFiles();
+  }
+  return cachedFiles;
 }
 
 export async function getAllFiles() {
@@ -41,13 +49,6 @@ export async function getFileBySlug(slug) {
   return files.find((item) => item.slug === slug) || null;
 }
 
-/**
- * Resolves and validates an absolute storage path for a file item.
- *
- * Security: uses a normalised base path with a trailing separator to prevent
- * prefix-confusion attacks (e.g. /storage/files_other would NOT match
- * /storage/files/ even though the shorter string is a prefix of it).
- */
 export async function resolveStoragePath(fileItem) {
   if (!fileItem?.storage?.relativePath) {
     const err = new Error('Invalid storage path');
@@ -55,14 +56,12 @@ export async function resolveStoragePath(fileItem) {
     throw err;
   }
 
-  // Normalise base to always end with sep so startsWith is unambiguous
   const base = config.filesStoragePath.endsWith(path.sep)
     ? config.filesStoragePath
     : config.filesStoragePath + path.sep;
 
   const absolutePath = path.resolve(config.filesStoragePath, fileItem.storage.relativePath);
 
-  // Must start with the normalised base (directory separator prevents false matches)
   if (!absolutePath.startsWith(base)) {
     const err = new Error('Invalid storage path');
     err.statusCode = 403;
@@ -143,14 +142,6 @@ async function sha256File(absolutePath) {
   return hash.digest('hex');
 }
 
-async function ensureR2Enabled() {
-  if (!config.r2.enabled) {
-    const err = new Error('Cloudflare R2 is not enabled');
-    err.statusCode = 500;
-    throw err;
-  }
-}
-
 async function statStorageFile(absolutePath) {
   const relativePath = path.relative(config.filesStoragePath, absolutePath).split(path.sep).join('/');
   const stat = await fs.stat(absolutePath);
@@ -203,6 +194,8 @@ function buildGeneratedEntry(scan) {
     mimeType: scan.mimeType,
     storage: {
       relativePath: scan.relativePath,
+      objectKey: scan.relativePath,
+      r2Key: scan.relativePath,
       downloadName: fileName
     },
     published: false,
@@ -237,6 +230,8 @@ export async function syncFilesIndexFromDisk() {
       existing.storage = {
         ...existing.storage,
         relativePath: scan.relativePath,
+        objectKey: existing.storage?.objectKey || scan.relativePath,
+        r2Key: existing.storage?.r2Key || existing.storage?.objectKey || scan.relativePath,
         downloadName: existing.storage?.downloadName || path.basename(scan.relativePath)
       };
 
@@ -272,11 +267,8 @@ export async function syncFilesIndexFromDisk() {
   };
 }
 
-/**
- * Force-reload the files index (useful after SFTP updates without full restart).
- * Exposed for /api/admin/reload (protected by bearer token if configured).
- */
 export async function reloadFiles() {
   cachedFiles = null;
+  cachedFilesIndexPath = null;
   return loadFiles();
 }

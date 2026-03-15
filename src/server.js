@@ -89,7 +89,7 @@ app.use((error, req, res, _next) => {
 });
 
 const server = app.listen(config.port, () => {
-  console.log(`download-888vn listening on :${config.port} [${config.nodeEnv}]`);
+  console.log(`download-hub listening on :${config.port} [${config.nodeEnv}]`);
 });
 
 registerGracefulShutdown(server);
