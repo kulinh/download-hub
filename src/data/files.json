@@ -1,0 +1,66 @@
+[
+  {
+    "id": "win-toolkit-v1",
+    "slug": "win-toolkit-v1",
+    "title": {
+      "vi": "Bộ công cụ Windows v1 (demo 5 byte)",
+      "en": "Windows Toolkit v1 (5-byte demo)"
+    },
+    "summary": {
+      "vi": "File mẫu siêu nhỏ (5 byte) dùng để minh họa luồng tải và captcha. Không phải bản phân phối chính thức.",
+      "en": "Tiny 5-byte demo file to illustrate the download + captcha flow. Not an official release artifact."
+    },
+    "description": {
+      "vi": "Đây chỉ là file mẫu 5 byte có sẵn trong repo để test đường dẫn và token tải xuống. Khi chạy thật, hãy upload file thật qua SFTP vào storage/files/windows/ và cập nhật checksum.",
+      "en": "This repo ships a 5-byte demo file to test download paths and tokens. For real use, upload the actual artifact via SFTP into storage/files/windows/ and update the checksum."
+    },
+    "version": "1.0.0",
+    "platform": "Windows",
+    "language": ["vi", "en"],
+    "sizeBytes": 5,
+    "checksumSha256": "b5a2c96250612366ea272ffac6d9744aaf4b45aacd96aa7cfcb931ee3b558259",
+    "mimeType": "application/zip",
+    "storage": {
+      "relativePath": "windows/win-toolkit-v1.zip",
+      "downloadName": "888vn-windows-toolkit-v1.zip"
+    },
+    "published": true,
+    "featured": true,
+    "demo": true,
+    "maxAllowedSizeBytes": 524288000,
+    "tags": ["windows", "toolkit", "demo"],
+    "updatedAt": "2026-03-15T00:00:00Z"
+  },
+  {
+    "id": "android-pack-v2",
+    "slug": "android-pack-v2",
+    "title": {
+      "vi": "Gói Android v2 (chưa phát hành)",
+      "en": "Android Pack v2 (not published)"
+    },
+    "summary": {
+      "vi": "Placeholder cho gói Android. Chưa có file trong repo — chưa phải bản phân phối chính thức.",
+      "en": "Placeholder Android package. No file shipped in the repo — not an official release artifact."
+    },
+    "description": {
+      "vi": "Đang chờ upload file thật vào storage/files/android/ trước khi bật công bố.",
+      "en": "Waiting for a real file to be uploaded into storage/files/android/ before publishing."
+    },
+    "version": "2.0.0",
+    "platform": "Android",
+    "language": ["vi", "en"],
+    "sizeBytes": 0,
+    "checksumSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "mimeType": "application/zip",
+    "storage": {
+      "relativePath": "android/android-pack-v2.zip",
+      "downloadName": "888vn-android-pack-v2.zip"
+    },
+    "published": false,
+    "featured": false,
+    "demo": true,
+    "maxAllowedSizeBytes": 524288000,
+    "tags": ["android", "apk", "placeholder"],
+    "updatedAt": "2026-03-15T00:00:00Z"
+  }
+]

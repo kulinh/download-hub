@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= file.title[locale] || file.title.en %></title>
+  <link rel="stylesheet" href="/assets/site.css" />
+  <% if (provider) { %><script src="<%= provider.scriptSrc %>" async defer nonce="<%= cspNonce %>"></script><% } %>
+</head>
+<body>
+  <main class="container narrow">
+    <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
+    <article class="card detail">
+      <h1><%= file.title[locale] || file.title.en %></h1>
+      <p><%= file.description[locale] || file.description.en %></p>
+      <ul>
+        <li><strong><%= t('platform') %>:</strong> <%= file.platform %></li>
+        <li><strong><%= t('version') %>:</strong> <%= file.version %></li>
+        <li><strong><%= t('size') %>:</strong> <%= file.displaySize %></li>
+        <% if (file.checksumSha256 && !file.checksumSha256.startsWith('replace-')) { %>
+          <li><strong>SHA-256:</strong> <code><%= file.checksumSha256 %></code></li>
+        <% } %>
+      </ul>
+      <% if (file.demo) { %>
+        <p class="note note--demo"><%= t('demoFileNotice') %></p>
+      <% } %>
+      <p class="note"><%= t('securityNote') %></p>
+
+      <% if (!provider) { %>
+        <%# Captcha not configured — show explicit, graceful unavailable state %>
+        <div class="captcha-unavailable" role="alert" aria-live="assertive">
+          <span class="captcha-unavailable-icon" aria-hidden="true">⚠️</span>
+          <div>
+            <p class="captcha-unavailable-heading"><%= t('captchaUnavailableHeading') %></p>
+            <p class="captcha-unavailable-message"><%= t('captchaUnavailableMessage') %></p>
+          </div>
+        </div>
+      <% } else { %>
+        <form id="verify-form" method="post" action="/api/verify/<%= file.slug %>">
+          <% if (provider.provider === 'turnstile') { %>
+            <div class="cf-turnstile" data-sitekey="<%= provider.siteKey %>" data-action="download_gate"></div>
+          <% } else if (provider.provider === 'hcaptcha') { %>
+            <div class="h-captcha" data-sitekey="<%= provider.siteKey %>"></div>
+          <% } %>
+          <button id="submit-btn" class="button" type="submit">
+            <span class="btn-text"><%= t('verifyAndDownload') %></span>
+            <span class="btn-spinner" hidden aria-hidden="true">…</span>
+          </button>
+        </form>
+        <%# Download result area — populated safely via DOM (no innerHTML); aria-live for screen readers %>
+        <p id="result" class="result" role="status" aria-live="polite" aria-atomic="true"></p>
+      <% } %>
+    </article>
+  </main>
+  <% if (provider) { %>
+    <%# External script served with nonce — no inline JS needed, CSP-safe %>
+    <script
+      src="/assets/download.js"
+      nonce="<%= cspNonce %>"
+      data-form-id="verify-form"
+      data-result-id="result"
+      data-submit-id="submit-btn"
+      data-msg-verifying="<%= locale === 'vi' ? 'Đang xác minh…' : 'Verifying…' %>"
+      data-msg-success-prefix="<%= locale === 'vi' ? 'Xác minh thành công! Link hết hạn sau ' : 'Verified! Link expires in ' %>"
+      data-msg-success-suffix="<%= locale === 'vi' ? ' giây.' : ' seconds.' %>"
+      data-msg-error="<%= locale === 'vi' ? 'Xác minh thất bại. Vui lòng thử lại.' : 'Verification failed. Please try again.' %>"
+      data-msg-network="<%= locale === 'vi' ? 'Lỗi mạng. Vui lòng thử lại.' : 'Network error. Please try again.' %>"
+      data-msg-expired="<%= locale === 'vi' ? 'Link đã hết hạn. Vui lòng xác minh lại.' : 'Link expired. Please verify again.' %>"
+      data-msg-expiry-prefix="<%= locale === 'vi' ? 'Hết hạn sau' : 'Expires in' %>"
+      data-msg-expiry-suffix="<%= locale === 'vi' ? 'giây' : 'seconds' %>"
+      data-msg-download="<%= t('directDownload') %>"
+    ></script>
+  <% } %>
+</body>
+</html>

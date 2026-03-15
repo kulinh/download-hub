@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= t('siteTitle') %></title>
+  <meta name="description" content="<%= t('siteDescription') %>" />
+  <link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">download.888vn.net</p>
+        <h1><%= t('siteTitle') %></h1>
+        <p class="hero-desc"><%= t('siteDescription') %></p>
+        <% if (provider && provider.provider === 'turnstile') { %>
+          <p class="note captcha-notice"><%= t('providerTurnstile') %></p>
+        <% } else if (provider && provider.provider === 'hcaptcha') { %>
+          <p class="note captcha-notice"><%= t('providerHcaptcha') %></p>
+        <% } else { %>
+          <p class="note captcha-notice captcha-notice--warn"><%= t('captchaUnavailableHeading') %></p>
+        <% } %>
+      </div>
+      <nav class="lang-switch" aria-label="Language selection">
+        <a href="/?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>" hreflang="vi" aria-label="Tiếng Việt" aria-current="<%= locale === 'vi' ? 'true' : 'false' %>">VI</a>
+        <a href="/?lang=en" class="<%= locale === 'en' ? 'active' : '' %>" hreflang="en" aria-label="English" aria-current="<%= locale === 'en' ? 'true' : 'false' %>">EN</a>
+      </nav>
+    </header>
+
+    <section aria-labelledby="files-heading">
+      <h2 id="files-heading"><%= t('filesHeading') %></h2>
+      <% if (files.length === 0) { %>
+        <div class="empty-state" role="status" aria-live="polite">
+          <span class="empty-state-icon" aria-hidden="true">📭</span>
+          <h3 class="empty-state-heading"><%= t('noFilesHeading') %></h3>
+          <p class="empty-state-message"><%= t('noFilesMessage') %></p>
+        </div>
+      <% } else { %>
+        <div class="grid">
+          <% files.forEach((file) => { %>
+            <article class="card<%= file.featured ? ' featured' : '' %>" aria-label="<%= file.title[locale] || file.title.en %>">
+              <% if (file.featured) { %>
+                <span class="badge-featured"><%= t('featuredBadge') %></span>
+              <% } %>
+              <h3><%= file.title[locale] || file.title.en %></h3>
+              <p class="card-summary"><%= file.summary[locale] || file.summary.en %></p>
+              <ul class="meta-list">
+                <li><span class="meta-label"><%= t('platform') %></span> <span class="platform-badge platform-<%= file.platform.toLowerCase() %>"><%= file.platform %></span></li>
+                <li><span class="meta-label"><%= t('version') %></span> <%= file.version %></li>
+                <li><span class="meta-label"><%= t('size') %></span> <%= file.displaySize %></li>
+                <li><span class="meta-label"><%= t('updatedAt') %></span> <%= file.updatedAt ? new Date(file.updatedAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US') : '—' %></li>
+              </ul>
+              <a class="button" href="/download/<%= file.slug %>?lang=<%= locale %>">
+                <%= t('verifyAndDownload') %>
+                <span class="btn-arrow" aria-hidden="true">→</span>
+              </a>
+            </article>
+          <% }) %>
+        </div>
+      <% } %>
+    </section>
+  </main>
+</body>
+</html>

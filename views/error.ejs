@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+  <main class="container narrow">
+    <article class="card detail">
+      <h1><%= title %></h1>
+      <p><%= message %></p>
+      <a class="button" href="/?lang=<%= locale %>"><%= t('backHome') %></a>
+    </article>
+  </main>
+</body>
+</html>
