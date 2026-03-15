@@ -26,7 +26,7 @@
 import express from 'express';
 import path from 'node:path';
 import { config } from '../lib/config.js';
-import { getCaptchaProviderConfig, verifyCaptchaToken } from '../lib/captcha.js';
+import { getHcaptchaConfig, verifyHcaptchaToken } from '../lib/captcha.js';
 import {
   getAllFiles,
   getFiles,
@@ -88,11 +88,11 @@ function titleFromKey(key) {
 
 router.get('/admin/login', (req, res) => {
   const { locale } = pageData(req);
-  // Admin login prefers hCaptcha for the login form; fall back to Turnstile
-  const captchaProvider = getCaptchaProviderConfig();
+  // Admin login uses hCaptcha exclusively (not Turnstile — that's for public flow)
+  const hcaptcha = getHcaptchaConfig();
   res.render('admin-login', {
     locale,
-    captchaProvider,
+    hcaptcha,
     error: req.query.error || null,
     csrfToken: '',
     cspNonce: res.locals.cspNonce
@@ -113,11 +113,11 @@ router.post('/admin/login', simpleRateLimit, async (req, res) => {
     return res.redirect('/admin/login?error=invalid_credentials');
   }
 
-  // Verify captcha if configured
-  const captchaProvider = getCaptchaProviderConfig();
-  if (captchaProvider) {
+  // Verify hCaptcha if configured (admin panel uses hCaptcha, not Turnstile)
+  const hcaptcha = getHcaptchaConfig();
+  if (hcaptcha) {
     try {
-      const captcha = await verifyCaptchaToken(req);
+      const captcha = await verifyHcaptchaToken(req);
       if (!captcha.success) {
         return res.redirect('/admin/login?error=captcha_failed');
       }

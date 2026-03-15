@@ -88,7 +88,37 @@ export function requireAdminSession(req, res, next) {
   }
 
   req.adminSession = payload;
+  // Derive CSRF token from session cookie tail (last 16 chars)
+  const csrfToken = token ? token.slice(-16) : '';
+  res.locals.adminCsrfToken = csrfToken;
+
+  // CSRF validation for state-mutating requests (POST/PATCH/DELETE).
+  // GET requests are exempt. Legacy bearer-token requests are exempt.
+  // sameSite:strict cookie already mitigates most CSRF, but we also
+  // enforce the X-CSRF-Token header or _csrf body field for defence-in-depth.
+  const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
+  if (!SAFE_METHODS.includes(req.method)) {
+    const headerToken = req.headers['x-csrf-token'] || '';
+    const bodyToken = req.body?.['_csrf'] || '';
+    if (headerToken !== csrfToken && bodyToken !== csrfToken) {
+      return res.status(403).json({ ok: false, error: 'csrf_token_invalid' });
+    }
+  }
+
   next();
+}
+
+// Accept either admin session cookie or legacy bearer token
+export function requireAdminSessionOrToken(req, res, next) {
+  const authHeader = req.headers['authorization'] || '';
+  if (config.adminBearerToken && authHeader.startsWith('Bearer ')) {
+    const bearer = authHeader.slice(7);
+    if (bearer === config.adminBearerToken) {
+      req.adminSession = { role: 'admin', legacy: true };
+      return next();
+    }
+  }
+  return requireAdminSession(req, res, next);
 }
 
 /**

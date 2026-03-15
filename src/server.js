@@ -24,6 +24,8 @@ app.use(express.urlencoded({
   limit: config.maxBodySize,
   type: 'application/x-www-form-urlencoded'
 }));
+// JSON bodies for /api/* routes (admin APIs use application/json)
+app.use('/api', express.json({ limit: config.maxBodySize }));
 app.use(cookieParser());
 
 // Static assets (immutable cache for CSS/JS bundles)

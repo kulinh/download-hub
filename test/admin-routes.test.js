@@ -5,7 +5,7 @@ import request from 'supertest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import siteRouter from '../src/routes/site.js';
+import adminRouter from '../src/routes/admin.js';
 import { reloadConfig } from '../src/lib/config.js';
 import { createHmacToken } from '../src/lib/utils.js';
 
@@ -19,11 +19,20 @@ function makeValidAdminCookie() {
   return createHmacToken(payload, TEST_SESSION_SECRET);
 }
 
+/**
+ * CSRF token is derived as the last 16 characters of the session cookie.
+ * This mirrors the logic in requireAdminSession middleware.
+ */
+function makeCsrfToken(sessionToken) {
+  return sessionToken.slice(-16);
+}
+
 function makeApp() {
   const app = express();
   app.use(express.urlencoded({ extended: false }));
+  app.use(express.json());
   app.use(cookieParser());
-  app.use(siteRouter);
+  app.use(adminRouter);
   app.use((err, _req, res, _next) => {
     res.status(err.statusCode || 500).json({ ok: false, error: err.message });
   });
@@ -112,9 +121,11 @@ describe('admin ops routes', () => {
 
   it('syncs files.json from disk and updates checksum + size', async () => {
     const sessionToken = makeValidAdminCookie();
+    const csrfToken = makeCsrfToken(sessionToken);
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('X-CSRF-Token', csrfToken);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -130,9 +141,11 @@ describe('admin ops routes', () => {
     await fs.writeFile(path.join(storageDir, 'android', 'android-pack-v3.apk'), 'apk-data');
 
     const sessionToken = makeValidAdminCookie();
+    const csrfToken = makeCsrfToken(sessionToken);
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('X-CSRF-Token', csrfToken);
 
     expect(res.status).toBe(200);
     expect(res.body.created).toContain('android/android-pack-v3.apk');
@@ -143,5 +156,16 @@ describe('admin ops routes', () => {
     expect(created.published).toBe(false);
     expect(created.checksumSha256).toHaveLength(64);
     expect(created.sizeBytes).toBe(8);
+  });
+
+  it('rejects POST requests without valid CSRF token', async () => {
+    const sessionToken = makeValidAdminCookie();
+    const res = await request(app)
+      .post('/api/admin/sync')
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('X-CSRF-Token', 'invalid-csrf-token');
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('csrf_token_invalid');
   });
 });
