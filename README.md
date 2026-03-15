@@ -83,6 +83,9 @@ See:
 - `deploy/DOCKER-DEPLOY.md`
 - `deploy/README.md`
 - `deploy/OPERATOR-CHECKLIST.md`
+- `deploy/PORTAINER-STACK.md`
+- `deploy/portainer-stack.yml`
+- `deploy/MIGRATION-CHECKLIST.md`
 
 ## Required production env
 Minimum required values:
