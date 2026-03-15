@@ -92,7 +92,7 @@ export function requireAdminToken(req, res, next) {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   if (!token || token !== adminToken) {
-    return res.status(401).json({ ok: false, error: 'unauthorized' });
+    return res.status(401).json({ ok: false, error: 'admin_session_required' });
   }
   next();
 }

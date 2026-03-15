@@ -129,6 +129,9 @@ export function buildConfig(env = process.env) {
     if (!cfg.r2.enabled || !cfg.r2.accountId || !cfg.r2.bucket) {
       throw new Error('Cloudflare R2 (R2_ENABLED, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) must be configured in production');
     }
+
+    // Legacy bearer token admin mode is disabled in production
+    cfg.adminBearerToken = '';
   }
 
   return cfg;

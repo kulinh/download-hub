@@ -1,28 +1,17 @@
 import express from 'express';
-import { getCaptchaProviderConfig, getHcaptchaConfig, verifyHcaptchaToken, verifyTurnstileToken } from '../lib/captcha.js';
+import { getCaptchaProviderConfig, verifyTurnstileToken } from '../lib/captcha.js';
 import {
-  getAllFiles,
   getFileBySlug,
   getFiles,
-  reloadFiles,
-  resolveStoragePath,
-  scanStorageFiles,
-  syncFilesIndexFromDisk
+  resolveStoragePath
 } from '../lib/file-store.js';
 import { config } from '../lib/config.js';
 import { issueDownloadToken, streamDownload, verifyDownloadToken } from '../lib/download-token.js';
 import { t } from '../lib/i18n.js';
 import { buildBaseUrl, formatBytes, getServerName, pickLocale, publicError } from '../lib/utils.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
-import { enforceFormContentType, requireAdminToken } from '../middleware/security.js';
-import {
-  clearAdminSession,
-  issueAdminSession,
-  requireAdminSession,
-  requireAdminSessionPage,
-  validateAdminCredentials
-} from '../middleware/admin-auth.js';
-import { getPresignedUploadUrl, headR2Object, isR2Enabled, listR2Objects } from '../lib/r2-storage.js';
+import { enforceFormContentType } from '../middleware/security.js';
+import { isR2Enabled } from '../lib/r2-storage.js';
 
 const router = express.Router();
 
@@ -45,229 +34,8 @@ router.get('/health', (_req, res) => {
 });
 
 // ── Admin: Login page ─────────────────────────────────────────────────────────
-
-router.get('/admin/login', (req, res) => {
-  const { locale, t: translate } = pageData(req);
-  const hcaptcha = getHcaptchaConfig();
-  res.render('admin-login', {
-    locale,
-    t: translate,
-    hcaptcha,
-    cspNonce: res.locals.cspNonce,
-    error: null
-  });
-});
-
-router.post('/admin/login', enforceFormContentType, simpleRateLimit, async (req, res, next) => {
-  try {
-    const { locale, t: translate } = pageData(req);
-    const hcaptcha = getHcaptchaConfig();
-    const { username, password } = req.body || {};
-
-    const renderLogin = (error) => res.status(401).render('admin-login', {
-      locale,
-      t: translate,
-      hcaptcha,
-      cspNonce: res.locals.cspNonce,
-      error
-    });
-
-    // 1. Verify hCaptcha
-    const captcha = await verifyHcaptchaToken(req);
-    if (!captcha.success) {
-      return renderLogin(locale === 'vi' ? 'Xác minh captcha thất bại.' : 'Captcha verification failed.');
-    }
-
-    // 2. Validate credentials
-    if (!validateAdminCredentials(username, password)) {
-      return renderLogin(locale === 'vi' ? 'Tên đăng nhập hoặc mật khẩu không đúng.' : 'Invalid username or password.');
-    }
-
-    // 3. Issue session
-    issueAdminSession(res);
-    res.redirect(302, '/admin');
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post('/admin/logout', (req, res) => {
-  clearAdminSession(res);
-  res.redirect(302, '/admin/login');
-});
-
-// ── Admin UI (requires session) ───────────────────────────────────────────────
-
-router.get('/admin', requireAdminSessionPage, async (req, res, next) => {
-  try {
-    const { locale, t: translate } = pageData(req);
-    res.render('admin', {
-      locale,
-      t: translate,
-      r2Enabled: isR2Enabled(),
-      cspNonce: res.locals.cspNonce
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ── Admin APIs (require session) ──────────────────────────────────────────────
-
-router.get('/api/admin/files', requireAdminSession, async (req, res, next) => {
-  try {
-    const [entries, scanned] = await Promise.all([
-      getAllFiles(),
-      scanStorageFiles()
-    ]);
-
-    const scannedByPath = new Map(scanned.map((item) => [item.relativePath, item]));
-    const files = entries.map((entry) => {
-      const disk = scannedByPath.get(entry?.storage?.relativePath);
-      return {
-        ...entry,
-        disk: disk ? {
-          exists: true,
-          sizeBytes: disk.sizeBytes,
-          checksumSha256: disk.checksumSha256,
-          mimeType: disk.mimeType,
-          updatedAt: disk.updatedAt,
-          slug: disk.slug
-        } : {
-          exists: false,
-          sizeBytes: null,
-          checksumSha256: null,
-          mimeType: null,
-          updatedAt: null,
-          slug: null
-        }
-      };
-    });
-
-    const extraDiskFiles = scanned
-      .filter((item) => !entries.some((entry) => entry?.storage?.relativePath === item.relativePath))
-      .map((item) => ({
-        relativePath: item.relativePath,
-        sizeBytes: item.sizeBytes,
-        checksumSha256: item.checksumSha256,
-        mimeType: item.mimeType,
-        updatedAt: item.updatedAt,
-        slug: item.slug
-      }));
-
-    // R2 inventory preview (optional)
-    let r2Objects = [];
-    if (isR2Enabled()) {
-      try {
-        r2Objects = await listR2Objects();
-      } catch (err) {
-        r2Objects = [{ error: err.message }];
-      }
-    }
-
-    res.json({
-      ok: true,
-      files,
-      extraDiskFiles,
-      storagePath: config.filesStoragePath,
-      filesIndexPath: config.filesIndexPath,
-      r2: {
-        enabled: isR2Enabled(),
-        bucket: config.r2.bucket,
-        accountId: config.r2.accountId,
-        objects: r2Objects
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post('/api/admin/sync', requireAdminSession, async (req, res, next) => {
-  try {
-    const result = await syncFilesIndexFromDisk();
-    res.json({
-      ok: true,
-      created: result.created,
-      updated: result.updated,
-      unchanged: result.unchanged,
-      scanned: result.scanned,
-      totalEntries: result.entries.length
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post('/api/admin/reload', requireAdminSession, async (req, res, next) => {
-  try {
-    const files = await reloadFiles();
-    res.json({ ok: true, count: files.length });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * GET /api/admin/r2/presign-upload
- * Generate a presigned PUT URL for direct-to-R2 upload from admin panel.
- * Query params: key (R2 object key), contentType
- */
-router.get('/api/admin/r2/presign-upload', requireAdminSession, async (req, res, next) => {
-  try {
-    if (!isR2Enabled()) {
-      return res.status(400).json({ ok: false, error: 'r2_not_enabled' });
-    }
-    const { key, contentType } = req.query;
-    if (!key || typeof key !== 'string' || key.trim() === '') {
-      return res.status(400).json({ ok: false, error: 'key_required' });
-    }
-    const mimeType = typeof contentType === 'string' && contentType.trim()
-      ? contentType.trim()
-      : 'application/octet-stream';
-
-    const url = await getPresignedUploadUrl(key.trim(), mimeType);
-    res.json({ ok: true, url, key: key.trim(), expiresIn: 900 });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * GET /api/admin/r2/head
- * Check R2 object existence and metadata.
- * Query params: key
- */
-router.get('/api/admin/r2/head', requireAdminSession, async (req, res, next) => {
-  try {
-    if (!isR2Enabled()) {
-      return res.status(400).json({ ok: false, error: 'r2_not_enabled' });
-    }
-    const { key } = req.query;
-    if (!key || typeof key !== 'string') {
-      return res.status(400).json({ ok: false, error: 'key_required' });
-    }
-    const meta = await headR2Object(key.trim());
-    if (!meta) {
-      return res.status(404).json({ ok: false, exists: false, error: 'not_found' });
-    }
-    res.json({ ok: true, exists: true, ...meta });
-  } catch (error) {
-    next(error);
-  }
-});
-
-// ── Legacy: bearer token reload (backward compat) ────────────────────────────
-// Kept for CI/CD pipelines that already use ADMIN_BEARER_TOKEN
-
-router.post('/api/admin/reload-legacy', requireAdminToken, async (req, res, next) => {
-  try {
-    const files = await reloadFiles();
-    res.json({ ok: true, count: files.length });
-  } catch (error) {
-    next(error);
-  }
-});
+// Admin UI is handled in routes/admin.js in the new architecture. This file
+// keeps only public download flows.
 
 // ── Public pages ──────────────────────────────────────────────────────────────
 

@@ -30,22 +30,30 @@ Minimum required values:
 - `FILES_STORAGE_PATH=/home/cloudpanel/htdocs/download-888vn/storage/files`
 - `TRUST_PROXY=loopback`
 
+Admin hard auth (REQUIRED in production):
+- `ADMIN_USERNAME=<your-admin-username>`
+- `ADMIN_PASSWORD=<your-strong-password>`
+- `ADMIN_SESSION_SECRET=<long-random-secret-min-32-chars>`
+
 Optional:
-- `ADMIN_BEARER_TOKEN=<random-token>` if using reload endpoint
-- `USE_X_ACCEL_REDIRECT=true` if offloading file serving to Nginx
+- `ADMIN_BEARER_TOKEN=<random-token>` — **legacy only**, for existing CI/CD pipelines.
+  Leave **blank** for new deployments. New code uses session cookie auth.
+- `USE_X_ACCEL_REDIRECT=true` if offloading local-disk file serving to Nginx
+  (not needed when R2 is enabled)
 - `X_ACCEL_INTERNAL_PREFIX=/protected-downloads`
 
 ## 4) Captcha secrets
-Pick one provider before go-live.
+**Two separate captcha providers are required in production:**
+- **Public download flow** → Cloudflare Turnstile
+- **Admin panel login** → hCaptcha
 
-### Cloudflare Turnstile
+### Cloudflare Turnstile (public download — REQUIRED)
 - `TURNSTILE_ENABLED=true`
 - `TURNSTILE_SITE_KEY=...`
 - `TURNSTILE_SECRET_KEY=...`
 - `TURNSTILE_ACTION=download_gate`
 
-### hCaptcha fallback
-- `TURNSTILE_ENABLED=false`
+### hCaptcha (admin login — REQUIRED in production)
 - `HCAPTCHA_ENABLED=true`
 - `HCAPTCHA_SITE_KEY=...`
 - `HCAPTCHA_SECRET_KEY=...`
@@ -53,7 +61,7 @@ Pick one provider before go-live.
 
 After changing captcha secrets:
 - restart app
-- test a real captcha flow on production domain
+- test a real captcha flow on production domain (both public download and admin login)
 
 ## 5) Storage + file publish
 - Create storage dir:
@@ -120,26 +128,40 @@ systemctl reload nginx
 - `GET /health` returns `200` and `{"ok":true,...}`
 - Homepage renders normally
 - Detail page renders normally
-- Captcha renders with the intended provider
-- Captcha verify succeeds and returns a `downloadUrl`
+- **Admin login**: `GET /admin/login` renders with hCaptcha widget
+- **Admin login**: submit with valid credentials + hCaptcha → redirects to `/admin/r2`
+- **Admin logout**: session cookie cleared, redirects to `/admin/login`
+- **Admin API 401**: `GET /api/admin/r2/files` without cookie → `{"ok":false,"error":"admin_session_required"}`
+- **Admin API 200**: `GET /api/admin/r2/files` with valid session cookie → file list
+- Public Turnstile renders with the Turnstile widget
+- Turnstile verify succeeds and returns a `downloadUrl`
 - At least one real file downloads end-to-end
 - Expired link or mismatched client gets blocked (`403`)
-- If `USE_X_ACCEL_REDIRECT=true`, nginx download path works
-- `POST /api/admin/reload`:
-  - correct token => works
-  - missing/wrong token => blocked
 - `robots.txt` works
 - `/.well-known/security.txt` works
 - `pm2 status` shows no restart loop
 - logs show no boot/runtime errors
 
 ## 10) Troubleshooting quick runbook
-### Captcha verify fails
+### Admin login fails (captcha error)
 Check:
-- site key / secret key are correct
+- `HCAPTCHA_ENABLED=true` and keys are correct
+- `HCAPTCHA_EXPECTED_HOSTNAME` matches production domain
+- app restarted after env change
+
+### Public captcha verify fails
+Check:
+- `TURNSTILE_ENABLED=true` and Turnstile site key / secret key are correct
 - hostname matches `download.888vn.net`
 - app restarted after env change
-- provider actually enabled in `.env`
+- `TURNSTILE_ACTION` matches the action set in Cloudflare dashboard
+
+### Admin login redirects back to login page (session not established)
+Check:
+- `ADMIN_SESSION_SECRET` is set and non-placeholder
+- `ADMIN_COOKIE_NAME` is consistent across restarts
+- browser allows cookies from the production domain (no private mode issue)
+- session TTL not expired (`ADMIN_SESSION_TTL_SECONDS`)
 
 ### X-Accel-Redirect download fails
 Check:
@@ -172,11 +194,13 @@ pm2 logs download-888vn --lines 100
 
 ## 11) Ops / maintenance
 ### Secret rotation
-- rotate captcha secret(s)
+- rotate Turnstile secret key
+- rotate hCaptcha secret key
 - rotate `DOWNLOAD_TOKEN_SECRET`
-- rotate `ADMIN_BEARER_TOKEN` if used
+- rotate `ADMIN_SESSION_SECRET`
+- rotate `ADMIN_BEARER_TOKEN` if in use (legacy)
 - restart app after rotation
-- re-test captcha + download flow
+- re-test admin login, public captcha + download flow
 
 ### Backup scope
 Back up at minimum:

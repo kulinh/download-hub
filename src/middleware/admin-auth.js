@@ -23,6 +23,9 @@ const COOKIE_OPTIONS = {
   path: '/admin'
 };
 
+const CSRF_HEADER = 'x-admin-csrf';
+const CSRF_PARAM = '_csrf';
+
 // ── Session issuance / clearing ──────────────────────────────────────────────
 
 export function issueAdminSession(res) {
@@ -36,6 +39,8 @@ export function issueAdminSession(res) {
     maxAge: config.admin.sessionTtlSeconds * 1000
   });
 
+  // Expose CSRF token for UI form (slice of signed token)
+  res.locals.adminCsrfToken = token.slice(-16);
   return token;
 }
 
