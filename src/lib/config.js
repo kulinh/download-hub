@@ -104,18 +104,7 @@ export function buildConfig(env = process.env) {
     logRequests: toBool(env.LOG_REQUESTS, false),
 
     // Legacy: simple bearer token for /api/admin/reload (kept for backward compat)
-    adminBearerToken: env.ADMIN_BEARER_TOKEN || '',
-    // Admin session auth (new R2-oriented flow)
-    adminPassword: env.ADMIN_PASSWORD || '',
-    adminSessionSecret: env.ADMIN_SESSION_SECRET || '',
-    adminSessionTtlSeconds: toInt(env.ADMIN_SESSION_TTL_SECONDS, 3600),
-    // Cloudflare R2 config
-    r2AccountId: env.R2_ACCOUNT_ID || '',
-    r2AccessKeyId: env.R2_ACCESS_KEY_ID || '',
-    r2SecretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
-    r2BucketName: env.R2_BUCKET_NAME || '',
-    r2PublicDomain: env.R2_PUBLIC_DOMAIN || '',
-    r2PresignedTtlSeconds: toInt(env.R2_PRESIGNED_TTL_SECONDS, 120)
+    adminBearerToken: env.ADMIN_BEARER_TOKEN || ''
   };
 
   cfg.captchaProvider = detectCaptchaProvider(cfg);

@@ -8,6 +8,7 @@ import { pickLocale } from './lib/utils.js';
 import { applyAppSecurity } from './middleware/security.js';
 import { requestLogger } from './middleware/logging.js';
 import siteRouter from './routes/site.js';
+import adminRouter from './routes/admin.js';
 import { registerGracefulShutdown } from './middleware/shutdown.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -43,6 +44,7 @@ app.use(express.static(path.resolve(__dirname, '../public'), {
 }));
 
 app.use(siteRouter);
+app.use(adminRouter);
 
 // 404 handler
 app.use((req, res) => {

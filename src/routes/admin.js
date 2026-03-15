@@ -170,7 +170,7 @@ router.get('/api/admin/r2/status', requireAdminSession, (req, res) => {
   res.json({
     ok: true,
     r2Configured: configured,
-    bucket: configured ? config.r2BucketName : null
+    bucket: configured ? (config.r2?.bucket || config.r2BucketName || null) : null
   });
 });
 

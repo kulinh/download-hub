@@ -14,7 +14,7 @@
  *   - S3Client is singleton; safe to share across requests
  */
 
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from './config.js';
 
@@ -140,6 +140,28 @@ export async function headR2Object(r2Key) {
     }
     throw err;
   }
+}
+
+/**
+ * List objects in the R2 bucket using S3 ListObjectsV2.
+ * Returns an array of { key, sizeBytes, lastModified } objects.
+ * Returns [] if R2 is not enabled.
+ */
+export async function listR2Objects(prefix = '', maxKeys = 1000) {
+  if (!isR2Enabled()) return [];
+  const client = getR2Client();
+  const command = new ListObjectsV2Command({
+    Bucket: config.r2.bucket,
+    Prefix: prefix || undefined,
+    MaxKeys: maxKeys
+  });
+  const response = await client.send(command);
+  return (response.Contents || []).map((obj) => ({
+    key: obj.Key || '',
+    sizeBytes: obj.Size || 0,
+    lastModified: obj.LastModified?.toISOString() || null,
+    etag: obj.ETag || null
+  }));
 }
 
 /**

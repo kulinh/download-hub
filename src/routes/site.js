@@ -22,7 +22,7 @@ import {
   requireAdminSessionPage,
   validateAdminCredentials
 } from '../middleware/admin-auth.js';
-import { getPresignedUploadUrl, headR2Object, isR2Enabled } from '../lib/r2-storage.js';
+import { getPresignedUploadUrl, headR2Object, isR2Enabled, listR2Objects } from '../lib/r2-storage.js';
 
 const router = express.Router();
 
@@ -104,7 +104,8 @@ router.get('/admin', requireAdminSessionPage, async (req, res, next) => {
     res.render('admin', {
       locale,
       t: translate,
-      r2Enabled: isR2Enabled()
+      r2Enabled: isR2Enabled(),
+      cspNonce: res.locals.cspNonce
     });
   } catch (error) {
     next(error);

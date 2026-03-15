@@ -14,20 +14,21 @@ import crypto from 'node:crypto';
 import { config } from './config.js';
 
 export function isR2Configured() {
+  // Support both structured config.r2.* (primary) and legacy flat fields
   return Boolean(
-    config.r2AccountId &&
-    config.r2AccessKeyId &&
-    config.r2SecretAccessKey &&
-    config.r2BucketName
+    (config.r2?.accountId || config.r2AccountId) &&
+    (config.r2?.accessKeyId || config.r2AccessKeyId) &&
+    (config.r2?.secretAccessKey || config.r2SecretAccessKey) &&
+    (config.r2?.bucket || config.r2BucketName)
   );
 }
 
 function r2Endpoint() {
-  return `https://${config.r2AccountId}.r2.cloudflarestorage.com`;
+  return `https://${config.r2?.accountId || config.r2AccountId}.r2.cloudflarestorage.com`;
 }
 
 function r2BucketUrl() {
-  return `${r2Endpoint()}/${config.r2BucketName}`;
+  return `${r2Endpoint()}/${config.r2?.bucket || config.r2BucketName}`;
 }
 
 // ── AWS Signature v4 helpers ────────────────────────────────────────────────
