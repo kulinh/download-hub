@@ -85,7 +85,9 @@ See:
 - `deploy/OPERATOR-CHECKLIST.md`
 - `deploy/PORTAINER-STACK.md`
 - `deploy/portainer-stack.yml`
+- `deploy/PORTAINER-ENV-QUICKREF.md`
 - `deploy/MIGRATION-CHECKLIST.md`
+- `deploy/RELEASE-HANDOFF.md`
 
 ## Required production env
 Minimum required values:
