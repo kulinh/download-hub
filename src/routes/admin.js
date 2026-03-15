@@ -41,6 +41,7 @@ import {
   clearAdminSession,
   issueAdminSession,
   requireAdminSession,
+  requireAdminSessionOrToken,
   requireAdminSessionPage,
   validateAdminCredentials
 } from '../middleware/admin-auth.js';
@@ -170,7 +171,7 @@ router.get('/api/admin/r2/status', requireAdminSession, (req, res) => {
   res.json({
     ok: true,
     r2Configured: configured,
-    bucket: configured ? (config.r2?.bucket || config.r2BucketName || null) : null
+    bucket: configured ? config.r2?.bucket : null
   });
 });
 
@@ -429,7 +430,7 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, async (req, res
 
 // ── Legacy endpoints (bearer token, disk-based) ───────────────────────────────
 
-router.get('/api/admin/files', requireAdminToken, async (req, res, next) => {
+router.get('/api/admin/files', requireAdminSessionOrToken, async (req, res, next) => {
   try {
     const [entries, scanned] = await Promise.all([
       getAllFiles(),
@@ -447,7 +448,7 @@ router.get('/api/admin/files', requireAdminToken, async (req, res, next) => {
   }
 });
 
-router.post('/api/admin/sync', requireAdminToken, async (req, res, next) => {
+router.post('/api/admin/sync', requireAdminSessionOrToken, async (req, res, next) => {
   try {
     const result = await syncFilesIndexFromDisk();
     res.json({ ok: true, created: result.created, updated: result.updated, unchanged: result.unchanged, totalEntries: result.entries.length });
@@ -456,7 +457,7 @@ router.post('/api/admin/sync', requireAdminToken, async (req, res, next) => {
   }
 });
 
-router.post('/api/admin/reload', requireAdminToken, async (req, res, next) => {
+router.post('/api/admin/reload', requireAdminSessionOrToken, async (req, res, next) => {
   try {
     const files = await reloadFiles();
     res.json({ ok: true, count: files.length });
