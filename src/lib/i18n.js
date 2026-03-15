@@ -49,7 +49,7 @@ export const messages = {
     adminLogout: 'Đăng xuất',
     r2StorageLabel: 'Lưu trữ R2',
     r2InventoryTitle: 'Kho R2 — File Catalog',
-    r2NotConfigured: 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET_NAME trong .env.',
+    r2NotConfigured: 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET trong .env.',
     publishLabel: 'Publish',
     unpublishLabel: 'Unpublish',
     deleteConfirm: 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.',
