@@ -1,91 +1,137 @@
 # Cutover Runbook — host `alpha`
 
-Target host pattern:
-- Host: `alpha`
-- Legacy app path: `/home/download-888vn/htdocs/download.888vn.net`
-- Canonical target: Docker/Portainer + CloudPanel reverse proxy + R2
+Target topology:
+- Edge/TLS: CloudPanel Nginx on host `alpha`
+- Upstream app: Docker/Portainer container `download-hub-app`
+- App bind: `127.0.0.1:3000`
+- Metadata bind mount: `/opt/download-hub/data/files.json`
+- Object storage: Cloudflare R2
+- Public gate: Cloudflare Turnstile
+- Admin auth: username + password + hCaptcha + session cookie
 
 Goal:
-- stop serving from legacy app/runtime
-- keep CloudPanel as TLS edge only
-- serve the new stack from `127.0.0.1:3000`
-- keep metadata persisted, keep files in R2
+- stop serving traffic from the legacy runtime
+- switch CloudPanel to the Docker upstream only
+- keep the final metadata catalog on host disk
+- keep production file objects in R2
+- leave a clean rollback path
 
-## 1) Pre-cutover snapshot
-- [ ] Confirm Portainer stack is already deployed and healthy on `alpha`
-- [ ] Confirm host metadata dir exists: `/opt/download-hub/data/files.json`
-- [ ] Back up legacy files from `/home/download-888vn/htdocs/download.888vn.net`:
-  - [ ] `.env`
-  - [ ] `src/data/files.json`
-  - [ ] `storage/files/` if it exists
-  - [ ] any PM2/ecosystem file if it exists
-- [ ] Export current CloudPanel/Nginx vhost for `download.888vn.net`
-- [ ] Freeze admin writes on the old instance
+## 0) Hard stop conditions before cutover
+Do not switch traffic until all are true:
+- [ ] Portainer stack is deployed on `alpha`
+- [ ] `curl http://127.0.0.1:3000/health` returns 200 on `alpha`
+- [ ] `/opt/download-hub/data/files.json` contains the final approved production catalog
+- [ ] R2 bucket contains all real production objects referenced by the catalog
+- [ ] Turnstile keys are real production keys
+- [ ] hCaptcha keys are real production keys
+- [ ] admin username/password were set to real production values
+- [ ] old runtime owner is aware of the write freeze window
 
-## 2) Data reconciliation before traffic switch
-- [ ] Treat legacy truth as `/home/download-888vn/htdocs/download.888vn.net/src/data/files.json`, not repo sample data
-- [ ] Compare legacy catalog with real objects in R2
-- [ ] Upload any missing production files to R2 before cutover
-- [ ] Copy final approved catalog to `/opt/download-hub/data/files.json`
-- [ ] Make sure no demo/placeholder rows stay published
-
-## 3) Stop old runtime on `alpha`
-Use whatever the host is actually using; do not guess.
-- [ ] If PM2 was used, stop the old app from the legacy folder
-- [ ] If CloudPanel was managing Node directly, stop that app in CloudPanel
-- [ ] Verify old runtime is no longer binding the production app port/process
-
-Legacy path to inspect if needed:
+## 1) Pre-cutover backup + freeze
+Legacy path:
 - `/home/download-888vn/htdocs/download.888vn.net`
 
-## 4) Confirm new Docker app is the only upstream
-- [ ] In Portainer, stack `download-hub` shows healthy `download-hub-app`
-- [ ] Host check passes: `curl http://127.0.0.1:3000/health`
-- [ ] App is bound only on localhost, not public interfaces
+Take backups before touching traffic:
+- [ ] Back up legacy `.env`
+- [ ] Back up legacy `src/data/files.json`
+- [ ] Back up legacy `storage/files/` if present
+- [ ] Back up any PM2/ecosystem config if present
+- [ ] Export current CloudPanel vhost for `download.888vn.net`
+- [ ] Confirm no one is editing metadata in the old admin UI
+- [ ] Announce/record admin write freeze start time
 
-## 5) Switch CloudPanel/Nginx on `alpha`
-- [ ] Open CloudPanel site config for `download.888vn.net`
-- [ ] Replace old Node/PM2 upstream with `http://127.0.0.1:3000`
-- [ ] Use `deploy/nginx-download-888vn.conf` as the base
-- [ ] Keep TLS termination in CloudPanel/Nginx
-- [ ] Keep buffering disabled for download streaming
-- [ ] Reload Nginx successfully
+## 2) Reconcile data into the Docker target
+Treat the legacy catalog as source-of-truth unless a newer approved file exists elsewhere.
+- [ ] Compare legacy `src/data/files.json` with the final intended production catalog
+- [ ] Remove demo/test/placeholder rows from the final catalog
+- [ ] Verify every published R2 key in the final catalog exists in the bucket
+- [ ] Upload any missing objects to R2 before switch
+- [ ] Copy the final catalog to `/opt/download-hub/data/files.json`
+- [ ] Re-open the file on host and verify the expected slugs/objects are present
 
-## 6) Immediate post-cutover validation
-Run in this order:
+## 3) Verify the new stack in Portainer
+In Portainer on `alpha`:
+- [ ] Stack is the canonical Docker/Portainer deployment
+- [ ] Container name is `download-hub-app`
+- [ ] Restart policy is healthy / no crash loop
+- [ ] Env values are present for `APP_BASE_URL`, `APP_HOSTNAME`, `DOWNLOAD_TOKEN_SECRET`, `ADMIN_*`, `TURNSTILE_*`, `HCAPTCHA_*`, `R2_*`
+- [ ] Bind mount points to `/opt/download-hub/data`
+
+Host checks on `alpha`:
 - [ ] `curl http://127.0.0.1:3000/health`
+- [ ] `ss -ltnp | grep 3000` shows localhost bind only
+- [ ] App is not listening on public interfaces
+
+## 4) Shut down the old runtime
+Use only the method actually used on `alpha`.
+- [ ] If old app runs in PM2, stop it from the legacy path
+- [ ] If old app is managed by CloudPanel Node app mode, stop that app in CloudPanel
+- [ ] If another supervisor is used, stop that exact service
+- [ ] Verify the old process is no longer serving the production app
+
+## 5) Switch CloudPanel reverse proxy
+In CloudPanel for site `download.888vn.net`:
+- [ ] Open the vhost/reverse-proxy config
+- [ ] Replace the old upstream with `http://127.0.0.1:3000`
+- [ ] Use `deploy/nginx-download-888vn.conf` as the base
+- [ ] Keep TLS termination in CloudPanel/Nginx only
+- [ ] Keep download buffering settings disabled as required by the shipped config
+- [ ] Test and reload Nginx successfully
+
+## 6) Smoke test immediately after switch
+Run in this order.
+
+Host/local checks:
+- [ ] `curl http://127.0.0.1:3000/health`
+
+Public checks:
 - [ ] `curl -I https://download.888vn.net/health`
-- [ ] Homepage renders
-- [ ] Detail page renders
-- [ ] Turnstile appears and verify passes
-- [ ] `/admin/login` renders hCaptcha
-- [ ] Login succeeds and redirects to `/admin/r2`
-- [ ] `GET /api/admin/r2/status` shows configured
+- [ ] Homepage loads
+- [ ] One detail page loads
+- [ ] Turnstile renders on the public download flow
+- [ ] Turnstile verification succeeds
+
+Admin checks:
+- [ ] `/admin/login` loads
+- [ ] hCaptcha renders
+- [ ] Login succeeds with production username/password + hCaptcha
+- [ ] Redirect lands on `/admin/r2`
+- [ ] `GET /api/admin/r2/status` reports configured
 - [ ] `GET /api/admin/r2/files` returns expected inventory
-- [ ] Upload URL + confirm works
+- [ ] Upload URL + upload confirm flow works
 - [ ] Metadata edit works
 - [ ] Publish/unpublish works
-- [ ] One real published file downloads end-to-end
+
+Download checks:
+- [ ] One real published object downloads end-to-end
+- [ ] An unpublished item is not publicly downloadable
 - [ ] Expired token returns 403
 
-## 7) Rollback trigger
-Rollback immediately if any of these are true:
-- [ ] localhost health fails on the container
-- [ ] external health fails after Nginx switch
-- [ ] admin login works but R2 inventory is broken
-- [ ] published file download fails for real production objects
-- [ ] wrong catalog/demo data is exposed
+## 7) Rollback triggers
+Rollback immediately if any are true:
+- [ ] Localhost health fails on the container
+- [ ] External health fails after the Nginx switch
+- [ ] Turnstile or hCaptcha production verification is broken
+- [ ] Admin login works but `/admin/r2` inventory is broken
+- [ ] Real published object download fails
+- [ ] Wrong catalog/demo data is visible
+- [ ] Portainer container is unstable or restarting repeatedly
 
-## 8) Rollback on `alpha`
-- [ ] Point CloudPanel/Nginx back to the old upstream/config
-- [ ] Stop the Docker stack if it is the source of failure
-- [ ] Restore legacy `.env` / `files.json` if they were changed
+## 8) Rollback steps on `alpha`
+- [ ] Point CloudPanel back to the previous upstream/config
+- [ ] Reload Nginx and confirm old path is active again
+- [ ] Stop the Docker stack only if it is the source of the incident
+- [ ] Restore legacy `.env` / `files.json` only if they were changed during recovery
 - [ ] Restart the old runtime from `/home/download-888vn/htdocs/download.888vn.net`
-- [ ] Re-test health, admin login, and one real download
+- [ ] Re-test health, admin login, and one real download on the restored path
+- [ ] Keep the Docker artifacts and logs for postmortem
 
 ## 9) Done criteria
-- [ ] Production traffic reaches only Docker app on `127.0.0.1:3000`
-- [ ] Legacy runtime at `/home/download-888vn/htdocs/download.888vn.net` stays off
-- [ ] CloudPanel is reverse proxy only
-- [ ] R2-backed admin and public flows both pass
-- [ ] Backups of legacy app/cfg remain available until sign-off
+Cutover is complete only when all are true:
+- [ ] Production traffic reaches only `127.0.0.1:3000` via CloudPanel
+- [ ] Legacy runtime stays off
+- [ ] CloudPanel is reverse proxy/TLS edge only
+- [ ] Public Turnstile flow passes
+- [ ] Admin username/password + hCaptcha flow passes
+- [ ] R2-backed upload/list/publish/download flows pass
+- [ ] Backups and exported legacy config are retained until sign-off

@@ -87,9 +87,12 @@ See:
 - `deploy/portainer-stack.yml`
 - `deploy/PORTAINER-ENV-QUICKREF.md`
 - `deploy/PORTAINER-UI-CHECKLIST.md`
+- `deploy/portainer-stack.yml`
+- `deploy/portainer-stack.portainer-friendly.yml`
 - `deploy/MIGRATION-CHECKLIST.md`
 - `deploy/MIGRATION-SCRIPTS.md`
 - `deploy/CUTOVER-RUNBOOK-ALPHA.md`
+- `deploy/ALPHA-MIGRATION-COMMANDS.md`
 - `deploy/RELEASE-HANDOFF.md`
 
 ## Required production env
