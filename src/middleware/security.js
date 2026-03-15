@@ -71,10 +71,33 @@ export function applyAppSecurity(app) {
   });
 }
 
+/**
+ * enforceFormContentType — used exclusively on POST /admin/login (HTML form submission).
+ * Rejects any content-type that is not application/x-www-form-urlencoded.
+ * Do NOT apply this to /api/* routes; those routes expect application/json
+ * (see enforceJsonContentType below).
+ */
 export function enforceFormContentType(req, res, next) {
-  if (req.method !== 'POST') return next();
+  const safe = ['application/x-www-form-urlencoded'];
   const contentType = req.headers['content-type'] || '';
-  if (!String(contentType).includes('application/x-www-form-urlencoded')) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  if (!safe.some((ct) => contentType.includes(ct))) {
+    return res.status(415).json({ ok: false, error: 'unsupported_media_type' });
+  }
+  next();
+}
+
+/**
+ * enforceJsonContentType — content-type allowlist for mutating /api/* admin routes.
+ * Rejects POST/PATCH/PUT/DELETE requests whose Content-Type is not application/json.
+ * Apply to all admin API routes that accept a JSON request body.
+ * GET / HEAD / DELETE with no body are passed through without a Content-Type check.
+ */
+export function enforceJsonContentType(req, res, next) {
+  const bodyMethods = ['POST', 'PUT', 'PATCH'];
+  if (!bodyMethods.includes(req.method)) return next();
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('application/json')) {
     return res.status(415).json({ ok: false, error: 'unsupported_media_type' });
   }
   next();
@@ -83,6 +106,7 @@ export function enforceFormContentType(req, res, next) {
 /**
  * Guard /api/admin/* with a static bearer token.
  * Set ADMIN_BEARER_TOKEN in .env; leave blank to disable admin endpoints entirely.
+ * In production, legacy bearer token mode is disabled in config.
  */
 export function requireAdminToken(req, res, next) {
   const adminToken = config.adminBearerToken;

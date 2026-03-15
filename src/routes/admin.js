@@ -27,6 +27,7 @@ import express from 'express';
 import path from 'node:path';
 import { config } from '../lib/config.js';
 import { getHcaptchaConfig, verifyHcaptchaToken } from '../lib/captcha.js';
+import { enforceFormContentType, enforceJsonContentType } from '../middleware/security.js';
 import {
   getAllFiles,
   getFiles,
@@ -99,7 +100,7 @@ router.get('/admin/login', (req, res) => {
   });
 });
 
-router.post('/admin/login', simpleRateLimit, async (req, res) => {
+router.post('/admin/login', simpleRateLimit, enforceFormContentType, async (req, res) => {
   const { locale } = pageData(req);
   const { username = '', password = '' } = req.body || {};
   const adminUser = config.admin?.username || '';
@@ -244,7 +245,7 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
 
 // ── R2 Sync Index ─────────────────────────────────────────────────────────────
 
-router.post('/api/admin/r2/sync', requireAdminSession, async (req, res, next) => {
+router.post('/api/admin/r2/sync', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
   try {
     if (!isR2Configured()) {
       return res.json({ ok: true, synced: 0, message: 'r2_not_configured' });
@@ -327,7 +328,7 @@ router.delete('/api/admin/r2/files/:slug', requireAdminSession, async (req, res,
 
 // ── Toggle publish ────────────────────────────────────────────────────────────
 
-router.patch('/api/admin/r2/files/:slug/publish', requireAdminSession, async (req, res, next) => {
+router.patch('/api/admin/r2/files/:slug/publish', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const { published } = req.body || {};
@@ -346,7 +347,7 @@ router.patch('/api/admin/r2/files/:slug/publish', requireAdminSession, async (re
 
 // ── Update metadata ───────────────────────────────────────────────────────────
 
-router.patch('/api/admin/r2/files/:slug/metadata', requireAdminSession, async (req, res, next) => {
+router.patch('/api/admin/r2/files/:slug/metadata', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
   try {
     const { slug } = req.params;
     const { title, summary, version, platform } = req.body || {};
@@ -370,7 +371,7 @@ router.patch('/api/admin/r2/files/:slug/metadata', requireAdminSession, async (r
 
 // ── Presigned upload URL ──────────────────────────────────────────────────────
 
-router.post('/api/admin/r2/upload-url', requireAdminSession, async (req, res, next) => {
+router.post('/api/admin/r2/upload-url', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
   try {
     if (!isR2Configured()) {
       return res.status(503).json({ ok: false, error: 'r2_not_configured' });
@@ -388,7 +389,7 @@ router.post('/api/admin/r2/upload-url', requireAdminSession, async (req, res, ne
 
 // ── Confirm upload ────────────────────────────────────────────────────────────
 
-router.post('/api/admin/r2/upload-confirm', requireAdminSession, async (req, res, next) => {
+router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
   try {
     const { r2Key, filename, sizeBytes, contentType } = req.body || {};
     if (!r2Key) return res.status(400).json({ ok: false, error: 'r2key_required' });
@@ -448,7 +449,7 @@ router.get('/api/admin/files', requireAdminSessionOrToken, async (req, res, next
   }
 });
 
-router.post('/api/admin/sync', requireAdminSessionOrToken, async (req, res, next) => {
+router.post('/api/admin/sync', requireAdminSessionOrToken, enforceJsonContentType, async (req, res, next) => {
   try {
     const result = await syncFilesIndexFromDisk();
     res.json({ ok: true, created: result.created, updated: result.updated, unchanged: result.unchanged, totalEntries: result.entries.length });
@@ -457,7 +458,7 @@ router.post('/api/admin/sync', requireAdminSessionOrToken, async (req, res, next
   }
 });
 
-router.post('/api/admin/reload', requireAdminSessionOrToken, async (req, res, next) => {
+router.post('/api/admin/reload', requireAdminSessionOrToken, enforceJsonContentType, async (req, res, next) => {
   try {
     const files = await reloadFiles();
     res.json({ ok: true, count: files.length });

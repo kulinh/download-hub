@@ -29,8 +29,9 @@ function makeCsrfToken(sessionToken) {
 
 function makeApp() {
   const app = express();
+  // Mirror production parser setup: urlencoded global, json scoped to /api only.
   app.use(express.urlencoded({ extended: false }));
-  app.use(express.json());
+  app.use('/api', express.json());
   app.use(cookieParser());
   app.use(adminRouter);
   app.use((err, _req, res, _next) => {
@@ -125,7 +126,9 @@ describe('admin ops routes', () => {
     const res = await request(app)
       .post('/api/admin/sync')
       .set('Cookie', `dl888_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken);
+      .set('X-CSRF-Token', csrfToken)
+      .set('Content-Type', 'application/json')
+      .send('{}');
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -145,7 +148,9 @@ describe('admin ops routes', () => {
     const res = await request(app)
       .post('/api/admin/sync')
       .set('Cookie', `dl888_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken);
+      .set('X-CSRF-Token', csrfToken)
+      .set('Content-Type', 'application/json')
+      .send('{}');
 
     expect(res.status).toBe(200);
     expect(res.body.created).toContain('android/android-pack-v3.apk');
@@ -163,7 +168,9 @@ describe('admin ops routes', () => {
     const res = await request(app)
       .post('/api/admin/sync')
       .set('Cookie', `dl888_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', 'invalid-csrf-token');
+      .set('X-CSRF-Token', 'invalid-csrf-token')
+      .set('Content-Type', 'application/json')
+      .send('{}');
 
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('csrf_token_invalid');

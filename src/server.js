@@ -19,6 +19,11 @@ applyAppSecurity(app);
 app.use(requestLogger(!isProduction())); // verbose request logs in dev only
 app.set('view engine', 'ejs');
 app.set('views', path.resolve(__dirname, '../views'));
+// Body parsers:
+// - urlencoded: global, for HTML form submissions (POST /admin/login, etc.)
+// - JSON: scoped to /api/* only — admin API routes send and receive application/json.
+//   Do NOT move express.json() to global scope; enforceJsonContentType in admin.js
+//   acts as the content-type allowlist guard for mutating /api/admin/* requests.
 app.use(express.urlencoded({
   extended: false,
   limit: config.maxBodySize,

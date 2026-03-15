@@ -27,8 +27,10 @@ function csrfFromSession(sessionToken) {
 
 function makeApp() {
   const app = express();
-  app.use(express.json());
+  // Mirror production parser setup:
+  // urlencoded global (login forms), json scoped to /api only (admin API routes).
   app.use(express.urlencoded({ extended: false }));
+  app.use('/api', express.json());
   app.use(cookieParser());
   app.use(adminRouter);
   app.use((err, _req, res, _next) => {
@@ -112,6 +114,34 @@ describe('admin R2 routes', () => {
     expect(res.body.ok).toBe(true);
     expect(res.body.uploadUrl).toMatch(/https:\/\/r2\/upload/);
     expect(res.body.r2Key).toBe('bar.exe');
+  });
+
+  it('rejects upload-url POST with wrong content-type (enforceJsonContentType)', async () => {
+    const sessionToken = makeValidAdminCookie();
+    const csrfToken = csrfFromSession(sessionToken);
+    const res = await request(app)
+      .post('/api/admin/r2/upload-url')
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('X-CSRF-Token', csrfToken)
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send('filename=bar.exe');
+
+    expect(res.status).toBe(415);
+    expect(res.body.error).toBe('unsupported_media_type');
+  });
+
+  it('rejects PATCH publish with wrong content-type (enforceJsonContentType)', async () => {
+    const sessionToken = makeValidAdminCookie();
+    const csrfToken = csrfFromSession(sessionToken);
+    const res = await request(app)
+      .patch('/api/admin/r2/files/foo/publish')
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`)
+      .set('X-CSRF-Token', csrfToken)
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send('published=true');
+
+    expect(res.status).toBe(415);
+    expect(res.body.error).toBe('unsupported_media_type');
   });
 
   it('deletes r2 file and removes catalog entry', async () => {
