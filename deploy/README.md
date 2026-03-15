@@ -75,7 +75,7 @@ curl http://127.0.0.1:3000/health
 CloudPanel should proxy HTTPS traffic to the app container at:
 - `http://127.0.0.1:3000`
 
-Use `deploy/nginx-download-888vn.conf` as the base vhost customization.
+Use `deploy/nginx-download-hub.conf` as the base vhost customization.
 After edits:
 ```bash
 nginx -t && systemctl reload nginx
