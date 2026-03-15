@@ -13,22 +13,27 @@
 import crypto from 'node:crypto';
 import { config } from './config.js';
 
+function r2AccountId() { return config.r2?.accountId || ''; }
+function r2AccessKeyId() { return config.r2?.accessKeyId || ''; }
+function r2Secret() { return config.r2?.secretAccessKey || ''; }
+function r2BucketName() { return config.r2?.bucket || ''; }
+
 export function isR2Configured() {
-  // Support both structured config.r2.* (primary) and legacy flat fields
   return Boolean(
-    (config.r2?.accountId || config.r2AccountId) &&
-    (config.r2?.accessKeyId || config.r2AccessKeyId) &&
-    (config.r2?.secretAccessKey || config.r2SecretAccessKey) &&
-    (config.r2?.bucket || config.r2BucketName)
+    config.r2?.enabled &&
+    r2AccountId() &&
+    r2AccessKeyId() &&
+    r2Secret() &&
+    r2BucketName()
   );
 }
 
 function r2Endpoint() {
-  return `https://${config.r2?.accountId || config.r2AccountId}.r2.cloudflarestorage.com`;
+  return `https://${r2AccountId()}.r2.cloudflarestorage.com`;
 }
 
 function r2BucketUrl() {
-  return `${r2Endpoint()}/${config.r2?.bucket || config.r2BucketName}`;
+  return `${r2Endpoint()}/${r2BucketName()}`;
 }
 
 // ── AWS Signature v4 helpers ────────────────────────────────────────────────
@@ -78,11 +83,11 @@ function buildPresignedUrl({ method, key, ttlSeconds = 120, extraHeaders = {}, r
   const now = new Date();
   const amzDate = isoDate(now);
   const ds = dateStamp(now);
-  const host = `${config.r2AccountId}.r2.cloudflarestorage.com`;
-  const path = `/${config.r2BucketName}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
+  const host = `${r2AccountId()}.r2.cloudflarestorage.com`;
+  const path = `/${r2BucketName()}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
 
   const credentialScope = `${ds}/${region}/${service}/aws4_request`;
-  const credential = `${config.r2AccessKeyId}/${credentialScope}`;
+  const credential = `${r2AccessKeyId()}/${credentialScope}`;
 
   const queryParams = new URLSearchParams({
     'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
@@ -118,7 +123,7 @@ function buildPresignedUrl({ method, key, ttlSeconds = 120, extraHeaders = {}, r
     sha256Hex(canonicalReq)
   ].join('\n');
 
-  const signingKey = getSigningKey(config.r2SecretAccessKey, ds, region, service);
+  const signingKey = getSigningKey(r2Secret(), ds, region, service);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
 
   return `https://${host}${path}?${sortedQuery}&X-Amz-Signature=${signature}`;
@@ -157,7 +162,7 @@ export async function listR2Objects(prefix = '', maxKeys = 1000) {
   const now = new Date();
   const amzDate = isoDate(now);
   const ds = dateStamp(now);
-  const host = `${config.r2AccountId}.r2.cloudflarestorage.com`;
+  const host = `${r2AccountId()}.r2.cloudflarestorage.com`;
 
   const queryParams = new URLSearchParams({ 'list-type': '2', 'max-keys': String(maxKeys) });
   if (prefix) queryParams.set('prefix', prefix);
@@ -165,7 +170,7 @@ export async function listR2Objects(prefix = '', maxKeys = 1000) {
 
   const canonicalReq = [
     'GET',
-    `/${config.r2BucketName}/`,
+    `/${r2BucketName()}/`,
     queryString,
     `host:${host}\nx-amz-content-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nx-amz-date:${amzDate}\n`,
     'host;x-amz-content-sha256;x-amz-date',
@@ -180,12 +185,12 @@ export async function listR2Objects(prefix = '', maxKeys = 1000) {
     sha256Hex(canonicalReq)
   ].join('\n');
 
-  const signingKey = getSigningKey(config.r2SecretAccessKey, ds, region, service);
+  const signingKey = getSigningKey(r2Secret(), ds, region, service);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
 
-  const authHeader = `AWS4-HMAC-SHA256 Credential=${config.r2AccessKeyId}/${credentialScope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`;
+  const authHeader = `AWS4-HMAC-SHA256 Credential=${r2AccessKeyId()}/${credentialScope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`;
 
-  const url = `https://${host}/${config.r2BucketName}/?${queryString}`;
+  const url = `https://${host}/${r2BucketName()}/?${queryString}`;
   const resp = await fetch(url, {
     headers: {
       host,
@@ -227,8 +232,8 @@ export async function deleteR2Object(key) {
   const now = new Date();
   const amzDate = isoDate(now);
   const ds = dateStamp(now);
-  const host = `${config.r2AccountId}.r2.cloudflarestorage.com`;
-  const path = `/${config.r2BucketName}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
+  const host = `${r2AccountId()}.r2.cloudflarestorage.com`;
+  const path = `/${r2BucketName()}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
   const emptyHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
   const canonicalReq = [
@@ -248,10 +253,10 @@ export async function deleteR2Object(key) {
     sha256Hex(canonicalReq)
   ].join('\n');
 
-  const signingKey = getSigningKey(config.r2SecretAccessKey, ds, region, service);
+  const signingKey = getSigningKey(r2Secret(), ds, region, service);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
 
-  const authHeader = `AWS4-HMAC-SHA256 Credential=${config.r2AccessKeyId}/${credentialScope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`;
+  const authHeader = `AWS4-HMAC-SHA256 Credential=${r2AccessKeyId()}/${credentialScope}, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=${signature}`;
 
   const resp = await fetch(`https://${host}${path}`, {
     method: 'DELETE',
