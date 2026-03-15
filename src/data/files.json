@@ -26,8 +26,8 @@
       "r2Key": "windows/win-toolkit-v1.zip",
       "downloadName": "windows-toolkit-v1.zip"
     },
-    "published": true,
-    "featured": true,
+    "published": false,
+    "featured": false,
     "demo": true,
     "maxAllowedSizeBytes": 524288000,
     "tags": ["windows", "toolkit", "demo"],
