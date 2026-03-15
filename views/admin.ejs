@@ -10,10 +10,17 @@
   <main class="container admin-container">
     <div class="top-bar">
       <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
-      <nav class="lang-switch small" aria-label="Language selection">
-        <a href="/admin?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>">VI</a>
-        <a href="/admin?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
-      </nav>
+      <div style="display:flex;align-items:center;gap:1rem">
+        <nav class="lang-switch small" aria-label="Language selection">
+          <a href="/admin?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>">VI</a>
+          <a href="/admin?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
+        </nav>
+        <form method="POST" action="/admin/logout" style="margin:0">
+          <button type="submit" class="button button-secondary" style="padding:0.25rem 0.75rem;font-size:0.85rem">
+            <%= locale === 'vi' ? 'Đăng xuất' : 'Logout' %>
+          </button>
+        </form>
+      </div>
     </div>
 
     <header class="hero admin-hero">
@@ -22,96 +29,90 @@
         <h1>Admin file ops</h1>
         <p class="hero-desc">
           <%= locale === 'vi'
-            ? 'Nhập bearer token admin để xem file trên disk, đồng bộ size + SHA-256 vào files.json và reload app ngay trên UI.'
-            : 'Enter the admin bearer token to inspect on-disk files, sync size + SHA-256 into files.json, and reload the app from the UI.' %>
+            ? 'Quản lý file catalog, đồng bộ files.json, và thao tác R2 storage.'
+            : 'Manage file catalog, sync files.json, and R2 storage operations.' %>
         </p>
+        <% if (r2Enabled) { %>
+          <p class="note" style="color:var(--color-success,#22c55e)">
+            <%= locale === 'vi' ? '✓ R2 storage đang hoạt động' : '✓ R2 storage active' %>
+          </p>
+        <% } else { %>
+          <p class="note" style="color:var(--color-warn,#f59e0b)">
+            <%= locale === 'vi' ? '⚠ R2 chưa bật — đang dùng local disk' : '⚠ R2 disabled — using local disk' %>
+          </p>
+        <% } %>
       </div>
     </header>
 
-    <% if (!adminEnabled) { %>
-      <section class="card admin-card">
-        <div class="captcha-unavailable" role="alert">
-          <span class="captcha-unavailable-icon" aria-hidden="true">🔒</span>
-          <div>
-            <p class="captcha-unavailable-heading"><%= locale === 'vi' ? 'Admin API đang tắt' : 'Admin API is disabled' %></p>
-            <p class="captcha-unavailable-message">
-              <%= locale === 'vi'
-                ? 'Cần set ADMIN_BEARER_TOKEN trong .env để bật trang admin và các API thao tác.'
-                : 'Set ADMIN_BEARER_TOKEN in .env to enable the admin page and protected APIs.' %>
-            </p>
-          </div>
-        </div>
-      </section>
-    <% } else { %>
-      <section class="card admin-card">
-        <form id="admin-auth-form" class="admin-auth-form">
-          <label class="field-group">
-            <span class="field-label"><%= locale === 'vi' ? 'Bearer token admin' : 'Admin bearer token' %></span>
-            <input id="admin-token" class="text-input" type="password" autocomplete="off" spellcheck="false" placeholder="Bearer xxxxx" />
-          </label>
-          <div class="admin-actions">
-            <button type="submit" class="button"><%= locale === 'vi' ? 'Kết nối' : 'Connect' %></button>
-            <button type="button" id="load-files-btn" class="button button-secondary"><%= locale === 'vi' ? 'Tải danh sách' : 'Load files' %></button>
-            <button type="button" id="sync-files-btn" class="button button-secondary"><%= locale === 'vi' ? 'Sync files.json từ disk' : 'Sync files.json from disk' %></button>
-            <button type="button" id="reload-files-btn" class="button button-secondary"><%= locale === 'vi' ? 'Reload app index' : 'Reload app index' %></button>
-          </div>
-          <p id="admin-status" class="result" role="status" aria-live="polite"></p>
-        </form>
-      </section>
+    <section class="card admin-card">
+      <div class="admin-actions">
+        <button type="button" id="load-files-btn" class="button">
+          <%= locale === 'vi' ? 'Tải danh sách' : 'Load files' %>
+        </button>
+        <button type="button" id="sync-files-btn" class="button button-secondary">
+          <%= locale === 'vi' ? 'Sync files.json từ disk' : 'Sync files.json from disk' %>
+        </button>
+        <button type="button" id="reload-files-btn" class="button button-secondary">
+          <%= locale === 'vi' ? 'Reload app index' : 'Reload app index' %>
+        </button>
+        <% if (r2Enabled) { %>
+          <button type="button" id="r2-upload-btn" class="button button-secondary">
+            <%= locale === 'vi' ? 'Upload lên R2…' : 'Upload to R2…' %>
+          </button>
+        <% } %>
+      </div>
+      <p id="admin-status" class="result" role="status" aria-live="polite"></p>
+    </section>
 
-      <section class="admin-grid">
-        <article class="card admin-card">
-          <h2 class="admin-section-title"><%= locale === 'vi' ? 'Thông tin hệ thống' : 'System info' %></h2>
-          <dl id="admin-meta" class="kv-list"></dl>
-        </article>
+    <section class="admin-grid">
+      <article class="card admin-card">
+        <h2 class="admin-section-title"><%= locale === 'vi' ? 'Thông tin hệ thống' : 'System info' %></h2>
+        <dl id="admin-meta" class="kv-list"></dl>
+      </article>
 
-        <article class="card admin-card">
-          <h2 class="admin-section-title"><%= locale === 'vi' ? 'File có trên disk nhưng chưa có trong files.json' : 'Disk files missing from files.json' %></h2>
-          <div id="admin-extra-files" class="table-wrap"></div>
-        </article>
-      </section>
+      <article class="card admin-card">
+        <h2 class="admin-section-title"><%= locale === 'vi' ? 'File có trên disk nhưng chưa có trong files.json' : 'Disk files missing from files.json' %></h2>
+        <div id="admin-extra-files" class="table-wrap"></div>
+      </article>
+    </section>
 
-      <section class="card admin-card">
-        <h2 class="admin-section-title"><%= locale === 'vi' ? 'Catalog files.json + trạng thái trên disk' : 'files.json catalog + on-disk status' %></h2>
-        <div id="admin-files-table" class="table-wrap"></div>
-      </section>
-    <% } %>
+    <section class="card admin-card">
+      <h2 class="admin-section-title"><%= locale === 'vi' ? 'Catalog files.json + trạng thái trên disk' : 'files.json catalog + on-disk status' %></h2>
+      <div id="admin-files-table" class="table-wrap"></div>
+    </section>
   </main>
 
-  <% if (adminEnabled) { %>
-    <script
-      src="/assets/admin.js"
-      nonce="<%= cspNonce %>"
-      data-locale="<%= locale %>"
-      data-msg-connected="<%= locale === 'vi' ? 'Đã lưu token trong session trình duyệt. Có thể load dữ liệu.' : 'Token saved in this browser session. You can load data now.' %>"
-      data-msg-token-required="<%= locale === 'vi' ? 'Nhập bearer token admin trước.' : 'Enter the admin bearer token first.' %>"
-      data-msg-loading="<%= locale === 'vi' ? 'Đang tải dữ liệu…' : 'Loading data…' %>"
-      data-msg-load-success="<%= locale === 'vi' ? 'Tải dữ liệu admin thành công.' : 'Admin data loaded.' %>"
-      data-msg-syncing="<%= locale === 'vi' ? 'Đang quét disk và cập nhật files.json…' : 'Scanning disk and updating files.json…' %>"
-      data-msg-sync-success="<%= locale === 'vi' ? 'Đồng bộ files.json xong.' : 'files.json sync completed.' %>"
-      data-msg-reloading="<%= locale === 'vi' ? 'Đang reload index…' : 'Reloading index…' %>"
-      data-msg-reload-success="<%= locale === 'vi' ? 'Reload thành công.' : 'Reload completed.' %>"
-      data-msg-no-extra="<%= locale === 'vi' ? 'Không có file lẻ trên disk.' : 'No extra files found on disk.' %>"
-      data-msg-no-files="<%= locale === 'vi' ? 'Chưa có entry nào trong files.json.' : 'No entries in files.json yet.' %>"
-      data-label-storage-path="<%= locale === 'vi' ? 'Storage path' : 'Storage path' %>"
-      data-label-index-path="<%= locale === 'vi' ? 'Index path' : 'Index path' %>"
-      data-label-total-files="<%= locale === 'vi' ? 'Tổng entry' : 'Total entries' %>"
-      data-label-extra-files="<%= locale === 'vi' ? 'File lẻ trên disk' : 'Extra disk files' %>"
-      data-label-created="<%= locale === 'vi' ? 'Tạo mới' : 'Created' %>"
-      data-label-updated="<%= locale === 'vi' ? 'Cập nhật' : 'Updated' %>"
-      data-label-unchanged="<%= locale === 'vi' ? 'Không đổi' : 'Unchanged' %>"
-      data-col-slug="slug"
-      data-col-relative-path="relativePath"
-      data-col-published="<%= locale === 'vi' ? 'published' : 'published' %>"
-      data-col-catalog-size="<%= locale === 'vi' ? 'sizeBytes (json)' : 'sizeBytes (json)' %>"
-      data-col-disk-size="<%= locale === 'vi' ? 'sizeBytes (disk)' : 'sizeBytes (disk)' %>"
-      data-col-catalog-sha="<%= locale === 'vi' ? 'SHA-256 (json)' : 'SHA-256 (json)' %>"
-      data-col-disk-sha="<%= locale === 'vi' ? 'SHA-256 (disk)' : 'SHA-256 (disk)' %>"
-      data-col-status="<%= locale === 'vi' ? 'Trạng thái' : 'Status' %>"
-      data-status-match="<%= locale === 'vi' ? 'Khớp' : 'Match' %>"
-      data-status-mismatch="<%= locale === 'vi' ? 'Lệch metadata' : 'Metadata mismatch' %>"
-      data-status-missing="<%= locale === 'vi' ? 'Thiếu file trên disk' : 'Missing on disk' %>"
-    ></script>
-  <% } %>
+  <script
+    src="/assets/admin.js"
+    nonce="<%= cspNonce %>"
+    data-locale="<%= locale %>"
+    data-r2-enabled="<%= r2Enabled %>"
+    data-msg-loading="<%= locale === 'vi' ? 'Đang tải dữ liệu…' : 'Loading data…' %>"
+    data-msg-load-success="<%= locale === 'vi' ? 'Tải dữ liệu admin thành công.' : 'Admin data loaded.' %>"
+    data-msg-syncing="<%= locale === 'vi' ? 'Đang quét disk và cập nhật files.json…' : 'Scanning disk and updating files.json…' %>"
+    data-msg-sync-success="<%= locale === 'vi' ? 'Đồng bộ files.json xong.' : 'files.json sync completed.' %>"
+    data-msg-reloading="<%= locale === 'vi' ? 'Đang reload index…' : 'Reloading index…' %>"
+    data-msg-reload-success="<%= locale === 'vi' ? 'Reload thành công.' : 'Reload completed.' %>"
+    data-msg-no-extra="<%= locale === 'vi' ? 'Không có file lẻ trên disk.' : 'No extra files found on disk.' %>"
+    data-msg-no-files="<%= locale === 'vi' ? 'Chưa có entry nào trong files.json.' : 'No entries in files.json yet.' %>"
+    data-label-storage-path="<%= locale === 'vi' ? 'Storage path' : 'Storage path' %>"
+    data-label-index-path="<%= locale === 'vi' ? 'Index path' : 'Index path' %>"
+    data-label-total-files="<%= locale === 'vi' ? 'Tổng entry' : 'Total entries' %>"
+    data-label-extra-files="<%= locale === 'vi' ? 'File lẻ trên disk' : 'Extra disk files' %>"
+    data-label-created="<%= locale === 'vi' ? 'Tạo mới' : 'Created' %>"
+    data-label-updated="<%= locale === 'vi' ? 'Cập nhật' : 'Updated' %>"
+    data-label-unchanged="<%= locale === 'vi' ? 'Không đổi' : 'Unchanged' %>"
+    data-col-slug="slug"
+    data-col-relative-path="relativePath"
+    data-col-published="<%= locale === 'vi' ? 'published' : 'published' %>"
+    data-col-catalog-size="<%= locale === 'vi' ? 'sizeBytes (json)' : 'sizeBytes (json)' %>"
+    data-col-disk-size="<%= locale === 'vi' ? 'sizeBytes (disk)' : 'sizeBytes (disk)' %>"
+    data-col-catalog-sha="<%= locale === 'vi' ? 'SHA-256 (json)' : 'SHA-256 (json)' %>"
+    data-col-disk-sha="<%= locale === 'vi' ? 'SHA-256 (disk)' : 'SHA-256 (disk)' %>"
+    data-col-status="<%= locale === 'vi' ? 'Trạng thái' : 'Status' %>"
+    data-status-match="<%= locale === 'vi' ? 'Khớp' : 'Match' %>"
+    data-status-mismatch="<%= locale === 'vi' ? 'Lệch metadata' : 'Metadata mismatch' %>"
+    data-status-missing="<%= locale === 'vi' ? 'Thiếu file trên disk' : 'Missing on disk' %>"
+  ></script>
 </body>
 </html>

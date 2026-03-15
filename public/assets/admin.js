@@ -1,259 +1,250 @@
+/**
+ * admin.js — Admin panel frontend
+ * Session auth: no bearer token needed (cookie-based session from /admin/login).
+ * R2 workflow: presign-upload endpoint → direct browser PUT to R2.
+ */
 (function () {
   'use strict';
 
   const script = document.currentScript;
-  if (!script) return;
-
   const locale = script.dataset.locale || 'en';
-  const messages = {
-    connected: script.dataset.msgConnected,
-    tokenRequired: script.dataset.msgTokenRequired,
-    loading: script.dataset.msgLoading,
-    loadSuccess: script.dataset.msgLoadSuccess,
-    syncing: script.dataset.msgSyncing,
-    syncSuccess: script.dataset.msgSyncSuccess,
-    reloading: script.dataset.msgReloading,
-    reloadSuccess: script.dataset.msgReloadSuccess,
-    noExtra: script.dataset.msgNoExtra,
-    noFiles: script.dataset.msgNoFiles,
-    labels: {
-      storagePath: script.dataset.labelStoragePath,
-      indexPath: script.dataset.labelIndexPath,
-      totalFiles: script.dataset.labelTotalFiles,
-      extraFiles: script.dataset.labelExtraFiles,
-      created: script.dataset.labelCreated,
-      updated: script.dataset.labelUpdated,
-      unchanged: script.dataset.labelUnchanged
-    },
-    columns: {
-      slug: script.dataset.colSlug,
-      relativePath: script.dataset.colRelativePath,
-      published: script.dataset.colPublished,
-      catalogSize: script.dataset.colCatalogSize,
-      diskSize: script.dataset.colDiskSize,
-      catalogSha: script.dataset.colCatalogSha,
-      diskSha: script.dataset.colDiskSha,
-      status: script.dataset.colStatus
-    },
-    status: {
-      match: script.dataset.statusMatch,
-      mismatch: script.dataset.statusMismatch,
-      missing: script.dataset.statusMissing
-    }
+  const r2Enabled = script.dataset.r2Enabled === 'true';
+  const msg = {
+    loading: script.dataset.msgLoading || 'Loading…',
+    loadSuccess: script.dataset.msgLoadSuccess || 'Loaded.',
+    syncing: script.dataset.msgSyncing || 'Syncing…',
+    syncSuccess: script.dataset.msgSyncSuccess || 'Synced.',
+    reloading: script.dataset.msgReloading || 'Reloading…',
+    reloadSuccess: script.dataset.msgReloadSuccess || 'Reloaded.',
+    noExtra: script.dataset.msgNoExtra || 'No extra files.',
+    noFiles: script.dataset.msgNoFiles || 'No files.'
+  };
+  const labels = {
+    storagePath: script.dataset.labelStoragePath || 'Storage path',
+    indexPath: script.dataset.labelIndexPath || 'Index path',
+    totalFiles: script.dataset.labelTotalFiles || 'Total entries',
+    extraFiles: script.dataset.labelExtraFiles || 'Extra disk files',
+    created: script.dataset.labelCreated || 'Created',
+    updated: script.dataset.labelUpdated || 'Updated',
+    unchanged: script.dataset.labelUnchanged || 'Unchanged'
+  };
+  const cols = {
+    slug: script.dataset.colSlug || 'slug',
+    relativePath: script.dataset.colRelativePath || 'relativePath',
+    published: script.dataset.colPublished || 'published',
+    catalogSize: script.dataset.colCatalogSize || 'sizeBytes (json)',
+    diskSize: script.dataset.colDiskSize || 'sizeBytes (disk)',
+    catalogSha: script.dataset.colCatalogSha || 'SHA-256 (json)',
+    diskSha: script.dataset.colDiskSha || 'SHA-256 (disk)',
+    status: script.dataset.colStatus || 'Status',
+    statusMatch: script.dataset.statusMatch || 'Match',
+    statusMismatch: script.dataset.statusMismatch || 'Mismatch',
+    statusMissing: script.dataset.statusMissing || 'Missing'
   };
 
-  const form = document.getElementById('admin-auth-form');
-  const tokenInput = document.getElementById('admin-token');
-  const statusEl = document.getElementById('admin-status');
-  const metaEl = document.getElementById('admin-meta');
-  const tableEl = document.getElementById('admin-files-table');
-  const extraEl = document.getElementById('admin-extra-files');
-  const loadBtn = document.getElementById('load-files-btn');
-  const syncBtn = document.getElementById('sync-files-btn');
-  const reloadBtn = document.getElementById('reload-files-btn');
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('admin-status');
 
-  if (!form || !tokenInput || !statusEl || !metaEl || !tableEl || !extraEl) return;
-
-  const STORAGE_KEY = 'download888vn_admin_bearer';
-  tokenInput.value = sessionStorage.getItem(STORAGE_KEY) || '';
-
-  function setStatus(type, text) {
-    statusEl.className = 'result';
-    if (type === 'error') statusEl.classList.add('result-error');
-    if (type === 'success') statusEl.classList.add('result-success');
-    if (type === 'pending') statusEl.classList.add('result-pending');
+  function setStatus(text, isError = false) {
+    if (!statusEl) return;
     statusEl.textContent = text;
+    statusEl.style.color = isError ? 'var(--color-error,#ef4444)' : '';
   }
 
-  function getToken() {
-    const raw = tokenInput.value.trim();
-    if (!raw) return '';
-    return raw.startsWith('Bearer ') ? raw.slice(7).trim() : raw;
-  }
+  // ── API helpers (session cookie sent automatically by browser) ─────────────
 
-  function authHeaders() {
-    const token = getToken();
-    if (!token) throw new Error('missing_token');
-    return { Authorization: 'Bearer ' + token };
-  }
-
-  function formatBytes(bytes) {
-    if (!Number.isFinite(bytes) || bytes < 0) return '—';
-    return new Intl.NumberFormat(locale === 'vi' ? 'vi-VN' : 'en-US').format(bytes);
-  }
-
-  function shortHash(value) {
-    if (!value) return '—';
-    if (value.length <= 20) return value;
-    return value.slice(0, 10) + '…' + value.slice(-10);
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  function renderMeta(payload, syncSummary) {
-    const items = [
-      [messages.labels.storagePath, payload.storagePath],
-      [messages.labels.indexPath, payload.filesIndexPath],
-      [messages.labels.totalFiles, String(payload.files.length)],
-      [messages.labels.extraFiles, String(payload.extraDiskFiles.length)]
-    ];
-
-    if (syncSummary) {
-      items.push(
-        [messages.labels.created, String(syncSummary.created.length)],
-        [messages.labels.updated, String(syncSummary.updated.length)],
-        [messages.labels.unchanged, String(syncSummary.unchanged.length)]
-      );
+  async function apiGet(path) {
+    const res = await fetch(path, { credentials: 'same-origin' });
+    if (res.status === 401) {
+      window.location.href = '/admin/login';
+      throw new Error('session_expired');
     }
-
-    metaEl.innerHTML = items.map(([key, value]) => (
-      '<div class="kv-row"><dt>' + escapeHtml(key) + '</dt><dd>' + escapeHtml(value) + '</dd></div>'
-    )).join('');
+    return res.json();
   }
 
-  function renderExtraFiles(extraFiles) {
-    if (!extraFiles.length) {
-      extraEl.innerHTML = '<p class="note">' + escapeHtml(messages.noExtra) + '</p>';
-      return;
-    }
-
-    extraEl.innerHTML = [
-      '<table class="admin-table">',
-      '<thead><tr>',
-      '<th>' + escapeHtml(messages.columns.relativePath) + '</th>',
-      '<th>' + escapeHtml(messages.columns.diskSize) + '</th>',
-      '<th>' + escapeHtml(messages.columns.diskSha) + '</th>',
-      '</tr></thead><tbody>',
-      extraFiles.map((file) => (
-        '<tr>' +
-          '<td><code>' + escapeHtml(file.relativePath) + '</code></td>' +
-          '<td>' + escapeHtml(formatBytes(file.sizeBytes)) + '</td>' +
-          '<td><code>' + escapeHtml(shortHash(file.checksumSha256)) + '</code></td>' +
-        '</tr>'
-      )).join(''),
-      '</tbody></table>'
-    ].join('');
-  }
-
-  function statusForRow(file) {
-    if (!file.disk || !file.disk.exists) return messages.status.missing;
-    if (file.sizeBytes !== file.disk.sizeBytes || file.checksumSha256 !== file.disk.checksumSha256) {
-      return messages.status.mismatch;
-    }
-    return messages.status.match;
-  }
-
-  function renderFiles(files) {
-    if (!files.length) {
-      tableEl.innerHTML = '<p class="note">' + escapeHtml(messages.noFiles) + '</p>';
-      return;
-    }
-
-    tableEl.innerHTML = [
-      '<table class="admin-table">',
-      '<thead><tr>',
-      '<th>' + escapeHtml(messages.columns.slug) + '</th>',
-      '<th>' + escapeHtml(messages.columns.relativePath) + '</th>',
-      '<th>' + escapeHtml(messages.columns.published) + '</th>',
-      '<th>' + escapeHtml(messages.columns.catalogSize) + '</th>',
-      '<th>' + escapeHtml(messages.columns.diskSize) + '</th>',
-      '<th>' + escapeHtml(messages.columns.catalogSha) + '</th>',
-      '<th>' + escapeHtml(messages.columns.diskSha) + '</th>',
-      '<th>' + escapeHtml(messages.columns.status) + '</th>',
-      '</tr></thead><tbody>',
-      files.map((file) => (
-        '<tr>' +
-          '<td>' + escapeHtml(file.slug || '—') + '</td>' +
-          '<td><code>' + escapeHtml(file.storage?.relativePath || '—') + '</code></td>' +
-          '<td>' + escapeHtml(String(Boolean(file.published))) + '</td>' +
-          '<td>' + escapeHtml(formatBytes(file.sizeBytes)) + '</td>' +
-          '<td>' + escapeHtml(formatBytes(file.disk?.sizeBytes)) + '</td>' +
-          '<td><code>' + escapeHtml(shortHash(file.checksumSha256)) + '</code></td>' +
-          '<td><code>' + escapeHtml(shortHash(file.disk?.checksumSha256)) + '</code></td>' +
-          '<td><span class="status-pill status-pill--' + escapeHtml(statusForRow(file).toLowerCase().replace(/[^a-z]+/g, '-')) + '">' + escapeHtml(statusForRow(file)) + '</span></td>' +
-        '</tr>'
-      )).join(''),
-      '</tbody></table>'
-    ].join('');
-  }
-
-  async function fetchJson(url, options) {
-    const response = await fetch(url, options);
-    const data = await response.json().catch(function () { return { ok: false, error: 'invalid_json' }; });
-    if (!response.ok || !data.ok) {
-      throw new Error(data.error || 'request_failed');
-    }
-    return data;
-  }
-
-  let lastSyncSummary = null;
-
-  async function loadFiles() {
-    setStatus('pending', messages.loading);
-    const payload = await fetchJson('/api/admin/files', {
-      headers: authHeaders(),
-      credentials: 'same-origin'
+  async function apiPost(path, body = {}) {
+    const res = await fetch(path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(body)
     });
-    renderMeta(payload, lastSyncSummary);
-    renderExtraFiles(payload.extraDiskFiles || []);
-    renderFiles(payload.files || []);
-    setStatus('success', messages.loadSuccess);
-    return payload;
+    if (res.status === 401) {
+      window.location.href = '/admin/login';
+      throw new Error('session_expired');
+    }
+    return res.json();
   }
 
-  form.addEventListener('submit', function (event) {
-    event.preventDefault();
-    const token = getToken();
-    if (!token) {
-      setStatus('error', messages.tokenRequired);
+  // ── Render helpers ────────────────────────────────────────────────────────
+
+  function renderMeta(data) {
+    const el = $('admin-meta');
+    if (!el) return;
+    const entries = [
+      [labels.storagePath, data.storagePath],
+      [labels.indexPath, data.filesIndexPath],
+      [labels.totalFiles, data.files?.length ?? 0],
+      [labels.extraFiles, data.extraDiskFiles?.length ?? 0]
+    ];
+    el.innerHTML = entries
+      .map(([k, v]) => `<div class="kv-row"><dt>${k}</dt><dd>${v}</dd></div>`)
+      .join('');
+  }
+
+  function renderExtraFiles(extraDiskFiles) {
+    const el = $('admin-extra-files');
+    if (!el) return;
+    if (!extraDiskFiles || extraDiskFiles.length === 0) {
+      el.innerHTML = `<p class="empty-note">${msg.noExtra}</p>`;
       return;
     }
-    sessionStorage.setItem(STORAGE_KEY, token);
-    setStatus('success', messages.connected);
-  });
+    const rows = extraDiskFiles.map((f) =>
+      `<tr>
+        <td>${f.relativePath}</td>
+        <td>${f.sizeBytes ?? '—'}</td>
+        <td title="${f.checksumSha256 || ''}">${f.checksumSha256 ? f.checksumSha256.slice(0, 12) + '…' : '—'}</td>
+      </tr>`
+    ).join('');
+    el.innerHTML = `<table class="admin-table"><thead><tr>
+      <th>${cols.relativePath}</th><th>${cols.diskSize}</th><th>${cols.diskSha}</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  }
 
-  loadBtn.addEventListener('click', async function () {
-    try {
-      await loadFiles();
-    } catch (error) {
-      setStatus('error', error.message === 'missing_token' ? messages.tokenRequired : error.message);
+  function renderFilesTable(files) {
+    const el = $('admin-files-table');
+    if (!el) return;
+    if (!files || files.length === 0) {
+      el.innerHTML = `<p class="empty-note">${msg.noFiles}</p>`;
+      return;
     }
-  });
 
-  syncBtn.addEventListener('click', async function () {
-    try {
-      setStatus('pending', messages.syncing);
-      lastSyncSummary = await fetchJson('/api/admin/sync', {
-        method: 'POST',
-        headers: authHeaders(),
-        credentials: 'same-origin'
-      });
-      await loadFiles();
-      setStatus('success', messages.syncSuccess);
-    } catch (error) {
-      setStatus('error', error.message === 'missing_token' ? messages.tokenRequired : error.message);
-    }
-  });
+    const rows = files.map((f) => {
+      let statusLabel = cols.statusMatch;
+      let statusClass = 'status-match';
+      if (!f.disk?.exists) {
+        statusLabel = cols.statusMissing;
+        statusClass = 'status-missing';
+      } else if (
+        f.disk.sizeBytes !== f.sizeBytes ||
+        f.disk.checksumSha256 !== f.checksumSha256
+      ) {
+        statusLabel = cols.statusMismatch;
+        statusClass = 'status-mismatch';
+      }
 
-  reloadBtn.addEventListener('click', async function () {
-    try {
-      setStatus('pending', messages.reloading);
-      await fetchJson('/api/admin/reload', {
-        method: 'POST',
-        headers: authHeaders(),
-        credentials: 'same-origin'
-      });
-      await loadFiles();
-      setStatus('success', messages.reloadSuccess);
-    } catch (error) {
-      setStatus('error', error.message === 'missing_token' ? messages.tokenRequired : error.message);
-    }
-  });
+      return `<tr>
+        <td>${f.slug}</td>
+        <td>${f.storage?.relativePath || f.storage?.r2Key || '—'}</td>
+        <td>${f.published ? '✓' : '—'}</td>
+        <td>${f.sizeBytes ?? '—'}</td>
+        <td>${f.disk?.sizeBytes ?? '—'}</td>
+        <td title="${f.checksumSha256 || ''}">${f.checksumSha256 ? f.checksumSha256.slice(0, 10) + '…' : '—'}</td>
+        <td title="${f.disk?.checksumSha256 || ''}">${f.disk?.checksumSha256 ? f.disk.checksumSha256.slice(0, 10) + '…' : '—'}</td>
+        <td class="${statusClass}">${statusLabel}</td>
+      </tr>`;
+    }).join('');
+
+    el.innerHTML = `<table class="admin-table">
+      <thead><tr>
+        <th>${cols.slug}</th>
+        <th>${cols.relativePath}</th>
+        <th>${cols.published}</th>
+        <th>${cols.catalogSize}</th>
+        <th>${cols.diskSize}</th>
+        <th>${cols.catalogSha}</th>
+        <th>${cols.diskSha}</th>
+        <th>${cols.status}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  // ── Load files ─────────────────────────────────────────────────────────────
+
+  const loadBtn = $('load-files-btn');
+  if (loadBtn) {
+    loadBtn.addEventListener('click', async () => {
+      setStatus(msg.loading);
+      try {
+        const data = await apiGet('/api/admin/files');
+        if (!data.ok) throw new Error(data.error || 'load_failed');
+        renderMeta(data);
+        renderExtraFiles(data.extraDiskFiles);
+        renderFilesTable(data.files);
+        setStatus(msg.loadSuccess);
+      } catch (err) {
+        if (err.message !== 'session_expired') setStatus(err.message, true);
+      }
+    });
+  }
+
+  // ── Sync files ─────────────────────────────────────────────────────────────
+
+  const syncBtn = $('sync-files-btn');
+  if (syncBtn) {
+    syncBtn.addEventListener('click', async () => {
+      setStatus(msg.syncing);
+      try {
+        const data = await apiPost('/api/admin/sync');
+        if (!data.ok) throw new Error(data.error || 'sync_failed');
+        setStatus(
+          `${msg.syncSuccess} ${labels.created}: ${data.created?.length ?? 0}, ${labels.updated}: ${data.updated?.length ?? 0}, ${labels.unchanged}: ${data.unchanged?.length ?? 0}`
+        );
+      } catch (err) {
+        if (err.message !== 'session_expired') setStatus(err.message, true);
+      }
+    });
+  }
+
+  // ── Reload index ───────────────────────────────────────────────────────────
+
+  const reloadBtn = $('reload-files-btn');
+  if (reloadBtn) {
+    reloadBtn.addEventListener('click', async () => {
+      setStatus(msg.reloading);
+      try {
+        const data = await apiPost('/api/admin/reload');
+        if (!data.ok) throw new Error(data.error || 'reload_failed');
+        setStatus(`${msg.reloadSuccess} (${data.count} files)`);
+      } catch (err) {
+        if (err.message !== 'session_expired') setStatus(err.message, true);
+      }
+    });
+  }
+
+  // ── R2 upload ─────────────────────────────────────────────────────────────
+
+  const r2UploadBtn = $('r2-upload-btn');
+  if (r2UploadBtn && r2Enabled) {
+    r2UploadBtn.addEventListener('click', async () => {
+      const key = prompt(locale === 'vi' ? 'Nhập R2 key (vd: windows/myfile.zip):' : 'Enter R2 key (e.g. windows/myfile.zip):');
+      if (!key) return;
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+        setStatus(locale === 'vi' ? 'Đang lấy presigned URL…' : 'Getting presigned URL…');
+        try {
+          const params = new URLSearchParams({ key, contentType: file.type || 'application/octet-stream' });
+          const data = await apiGet(`/api/admin/r2/presign-upload?${params}`);
+          if (!data.ok || !data.url) throw new Error(data.error || 'presign_failed');
+
+          setStatus(locale === 'vi' ? `Đang upload ${file.name} lên R2…` : `Uploading ${file.name} to R2…`);
+          const uploadRes = await fetch(data.url, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file
+          });
+          if (!uploadRes.ok) throw new Error(`R2 upload failed: ${uploadRes.status}`);
+          setStatus(locale === 'vi' ? `✓ Upload thành công: ${key}` : `✓ Upload successful: ${key}`);
+        } catch (err) {
+          if (err.message !== 'session_expired') setStatus(err.message, true);
+        }
+      };
+      input.click();
+    });
+  }
 })();

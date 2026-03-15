@@ -12,7 +12,7 @@ async function loadFiles() {
   return cachedFiles;
 }
 
-async function readRawFilesIndex() {
+export async function readRawFilesIndex() {
   const raw = await fs.readFile(config.filesIndexPath, 'utf8');
   const parsed = JSON.parse(raw);
   if (!Array.isArray(parsed)) {
@@ -21,7 +21,7 @@ async function readRawFilesIndex() {
   return parsed;
 }
 
-async function writeRawFilesIndex(entries) {
+export async function writeRawFilesIndex(entries) {
   const serialized = `${JSON.stringify(entries, null, 2)}\n`;
   await fs.writeFile(config.filesIndexPath, serialized, 'utf8');
   cachedFiles = entries.filter((item) => item.published);
@@ -141,6 +141,14 @@ async function sha256File(absolutePath) {
   const buffer = await fs.readFile(absolutePath);
   hash.update(buffer);
   return hash.digest('hex');
+}
+
+async function ensureR2Enabled() {
+  if (!config.r2.enabled) {
+    const err = new Error('Cloudflare R2 is not enabled');
+    err.statusCode = 500;
+    throw err;
+  }
 }
 
 async function statStorageFile(absolutePath) {

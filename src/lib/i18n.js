@@ -41,7 +41,22 @@ export const messages = {
     noFilesHeading: 'Chưa có file nào',
     noFilesMessage: 'Hiện tại không có file nào được công bố. Vui lòng quay lại sau.',
     captchaUnavailableHeading: 'Xác minh tạm thời không khả dụng',
-    captchaUnavailableMessage: 'Hệ thống xác minh bảo mật chưa được cấu hình. Tính năng tải xuống hiện bị tắt. Vui lòng liên hệ quản trị viên hoặc thử lại sau.'
+    captchaUnavailableMessage: 'Hệ thống xác minh bảo mật chưa được cấu hình. Tính năng tải xuống hiện bị tắt. Vui lòng liên hệ quản trị viên hoặc thử lại sau.',
+    // R2 / admin
+    adminLoginTitle: 'Đăng nhập Admin',
+    adminLoginPassword: 'Mật khẩu admin',
+    adminLoginSubmit: 'Đăng nhập',
+    adminLogout: 'Đăng xuất',
+    r2StorageLabel: 'Lưu trữ R2',
+    r2InventoryTitle: 'Kho R2 — File Catalog',
+    r2NotConfigured: 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET_NAME trong .env.',
+    publishLabel: 'Publish',
+    unpublishLabel: 'Unpublish',
+    deleteConfirm: 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.',
+    editMetadata: 'Chỉnh sửa metadata',
+    uploadToR2: 'Upload lên R2',
+    syncIndex: 'Đồng bộ Index',
+    storageCloudflareR2: 'Cloudflare R2'
   },
   en: {
     siteTitle: '888VN Download Hub',
@@ -85,7 +100,22 @@ export const messages = {
     noFilesHeading: 'No files available',
     noFilesMessage: 'There are no published files at the moment. Please check back later.',
     captchaUnavailableHeading: 'Verification temporarily unavailable',
-    captchaUnavailableMessage: 'The security verification system is not configured. Downloads are currently disabled. Please contact the administrator or try again later.'
+    captchaUnavailableMessage: 'The security verification system is not configured. Downloads are currently disabled. Please contact the administrator or try again later.',
+    // R2 / admin
+    adminLoginTitle: 'Admin Login',
+    adminLoginPassword: 'Admin password',
+    adminLoginSubmit: 'Sign in',
+    adminLogout: 'Sign out',
+    r2StorageLabel: 'R2 Storage',
+    r2InventoryTitle: 'R2 Storage — File Catalog',
+    r2NotConfigured: 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME in .env.',
+    publishLabel: 'Publish',
+    unpublishLabel: 'Unpublish',
+    deleteConfirm: 'Are you sure you want to delete this file? This cannot be undone.',
+    editMetadata: 'Edit metadata',
+    uploadToR2: 'Upload to R2',
+    syncIndex: 'Sync Index',
+    storageCloudflareR2: 'Cloudflare R2'
   }
 };
 

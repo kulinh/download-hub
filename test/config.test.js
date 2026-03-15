@@ -13,12 +13,25 @@ describe('config validation', () => {
     expect(runner).toThrow(/DOWNLOAD_TOKEN_SECRET/);
   });
 
-  it('fails fast in production when no captcha provider configured', () => {
+  it('fails fast in production when Turnstile not configured', () => {
     const runner = () => buildConfig({
       NODE_ENV: 'production',
       DOWNLOAD_TOKEN_SECRET: 'strong-secret'
     });
-    expect(runner).toThrow(/Captcha provider/);
+    // New arch: Turnstile is required for public flow in production
+    expect(runner).toThrow(/Turnstile/);
+  });
+
+  it('fails fast in production when hCaptcha not configured for admin', () => {
+    const runner = () => buildConfig({
+      NODE_ENV: 'production',
+      DOWNLOAD_TOKEN_SECRET: 'strong-secret',
+      TURNSTILE_ENABLED: 'true',
+      TURNSTILE_SITE_KEY: 'k',
+      TURNSTILE_SECRET_KEY: 's'
+    });
+    // New arch: hCaptcha required for admin panel login
+    expect(runner).toThrow(/hCaptcha/);
   });
 
   it('allows explicit trust proxy list', () => {

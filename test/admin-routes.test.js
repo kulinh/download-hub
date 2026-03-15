@@ -1,16 +1,28 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import siteRouter from '../src/routes/site.js';
 import { reloadConfig } from '../src/lib/config.js';
+import { createHmacToken } from '../src/lib/utils.js';
+
+const TEST_SESSION_SECRET = 'test-admin-session-secret-32chars!!';
+const TEST_ADMIN_USER = 'testadmin';
+const TEST_ADMIN_PASS = 'testpassword';
+
+function makeValidAdminCookie() {
+  const expiresAt = Date.now() + 3600 * 1000;
+  const payload = { role: 'admin', exp: expiresAt };
+  return createHmacToken(payload, TEST_SESSION_SECRET);
+}
 
 function makeApp() {
   const app = express();
   app.use(express.urlencoded({ extended: false }));
-  app.use((req, _res, next) => { req.cookies = {}; next(); });
+  app.use(cookieParser());
   app.use(siteRouter);
   app.use((err, _req, res, _next) => {
     res.status(err.statusCode || 500).json({ ok: false, error: err.message });
@@ -62,9 +74,14 @@ describe('admin ops routes', () => {
 
     reloadConfig({
       NODE_ENV: 'development',
-      DOWNLOAD_TOKEN_SECRET: 'secret',
+      DOWNLOAD_TOKEN_SECRET: 'dev-secret-change-me',
       TURNSTILE_ENABLED: 'false',
       HCAPTCHA_ENABLED: 'false',
+      ADMIN_USERNAME: TEST_ADMIN_USER,
+      ADMIN_PASSWORD: TEST_ADMIN_PASS,
+      ADMIN_SESSION_SECRET: TEST_SESSION_SECRET,
+      ADMIN_SESSION_TTL_SECONDS: '3600',
+      ADMIN_COOKIE_NAME: 'dl888_admin_sess',
       ADMIN_BEARER_TOKEN: 'admin-secret',
       FILES_STORAGE_PATH: storageDir,
       FILES_INDEX_PATH: indexPath
@@ -73,16 +90,17 @@ describe('admin ops routes', () => {
     app = makeApp();
   });
 
-  it('rejects admin files API without bearer token', async () => {
+  it('rejects admin files API without session cookie', async () => {
     const res = await request(app).get('/api/admin/files');
     expect(res.status).toBe(401);
-    expect(res.body.error).toBe('unauthorized');
+    expect(res.body.error).toBe('admin_session_required');
   });
 
-  it('returns disk metadata and mismatch status inputs through admin files API', async () => {
+  it('returns disk metadata through admin files API with valid session cookie', async () => {
+    const sessionToken = makeValidAdminCookie();
     const res = await request(app)
       .get('/api/admin/files')
-      .set('Authorization', 'Bearer admin-secret');
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -93,9 +111,10 @@ describe('admin ops routes', () => {
   });
 
   it('syncs files.json from disk and updates checksum + size', async () => {
+    const sessionToken = makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Authorization', 'Bearer admin-secret');
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -110,9 +129,10 @@ describe('admin ops routes', () => {
     await fs.mkdir(path.join(storageDir, 'android'), { recursive: true });
     await fs.writeFile(path.join(storageDir, 'android', 'android-pack-v3.apk'), 'apk-data');
 
+    const sessionToken = makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Authorization', 'Bearer admin-secret');
+      .set('Cookie', `dl888_admin_sess=${sessionToken}`);
 
     expect(res.status).toBe(200);
     expect(res.body.created).toContain('android/android-pack-v3.apk');

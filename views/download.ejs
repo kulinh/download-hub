@@ -16,24 +16,58 @@
         <a href="/download/<%= file.slug %>?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
       </nav>
     </div>
+
     <article class="card detail">
+      <div class="detail-header">
+        <% if (file.platform) { %>
+          <span class="platform-badge platform-<%= file.platform.toLowerCase().replace(/\s+/g, '-') %>"><%= file.platform %></span>
+        <% } %>
+        <% if (file.featured) { %>
+          <span class="badge-featured"><%= t('featuredBadge') %></span>
+        <% } %>
+        <% if (file.demo) { %>
+          <span class="badge-demo">Demo</span>
+        <% } %>
+      </div>
+
       <h1><%= file.title[locale] || file.title.en %></h1>
-      <p><%= file.description[locale] || file.description.en %></p>
-      <ul>
+
+      <p class="detail-description"><%= file.description[locale] || file.description.en %></p>
+
+      <ul class="meta-list">
         <li><strong><%= t('platform') %>:</strong> <%= file.platform %></li>
         <li><strong><%= t('version') %>:</strong> <%= file.version %></li>
         <li><strong><%= t('size') %>:</strong> <%= file.displaySize %></li>
-        <% if (file.checksumSha256 && !file.checksumSha256.startsWith('replace-')) { %>
-          <li><strong>SHA-256:</strong> <code><%= file.checksumSha256 %></code></li>
+        <% if (file.updatedAt) { %>
+          <li><strong><%= t('updatedAt') %>:</strong> <%= new Date(file.updatedAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US') %></li>
+        <% } %>
+        <% if (file.checksumSha256 && !file.checksumSha256.startsWith('replace-') && !file.checksumSha256.startsWith('sha256:pending')) { %>
+          <li>
+            <strong>SHA-256:</strong>
+            <code class="checksum-code"><%= file.checksumSha256 %></code>
+          </li>
+        <% } %>
+        <% if (file.r2 && file.r2.key) { %>
+          <li>
+            <strong><%= locale === 'vi' ? 'Lưu trữ' : 'Storage' %>:</strong>
+            <span class="r2-badge">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+              Cloudflare R2
+            </span>
+          </li>
         <% } %>
       </ul>
+
       <% if (file.demo) { %>
         <p class="note note--demo"><%= t('demoFileNotice') %></p>
       <% } %>
-      <p class="note"><%= t('securityNote') %></p>
+
+      <div class="security-note-block">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;margin-top:2px;color:var(--accent)"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <p class="note" style="margin:0;"><%= t('securityNote') %></p>
+      </div>
 
       <% if (!provider) { %>
-        <%# Captcha not configured — show explicit, graceful unavailable state %>
         <div class="captcha-unavailable" role="alert" aria-live="assertive">
           <span class="captcha-unavailable-icon" aria-hidden="true">⚠️</span>
           <div>
@@ -42,30 +76,60 @@
           </div>
         </div>
       <% } else { %>
-        <form id="verify-form" method="post" action="/api/verify/<%= file.slug %>">
-          <% if (provider.provider === 'turnstile') { %>
-            <div class="cf-turnstile" data-sitekey="<%= provider.siteKey %>" data-action="download_gate"></div>
-          <% } else if (provider.provider === 'hcaptcha') { %>
-            <div class="h-captcha" data-sitekey="<%= provider.siteKey %>"></div>
-          <% } %>
-          <button id="submit-btn" class="button" type="submit">
-            <span class="btn-text"><%= t('verifyAndDownload') %></span>
-            <span class="btn-spinner" hidden aria-hidden="true">…</span>
-          </button>
-        </form>
-        <%# Download result area — populated safely via DOM (no innerHTML); aria-live for screen readers %>
+        <div class="captcha-section">
+          <p class="captcha-section-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <%= t('captchaSection') %>
+          </p>
+          <form id="verify-form" method="post" action="/api/verify/<%= file.slug %>">
+            <% if (provider.provider === 'turnstile') { %>
+              <div class="cf-turnstile" data-sitekey="<%= provider.siteKey %>" data-action="download_gate" data-theme="dark"></div>
+            <% } else if (provider.provider === 'hcaptcha') { %>
+              <div class="h-captcha" data-sitekey="<%= provider.siteKey %>"></div>
+            <% } %>
+            <button id="submit-btn" class="button" type="submit" style="margin-top:16px;">
+              <span class="btn-text"><%= t('verifyAndDownload') %></span>
+              <span class="btn-spinner" hidden aria-hidden="true">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              </span>
+            </button>
+          </form>
+        </div>
+
+        <div id="download-ready-block" hidden class="download-ready-block">
+          <div class="download-ready-icon" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <p class="download-ready-label"><%= t('downloadReady') %></p>
+          <p id="expiry-countdown" class="expiry-text"></p>
+          <a id="download-link" class="button button-accent" href="#" target="_blank" rel="noopener noreferrer">
+            <%= t('directDownload') %>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </a>
+        </div>
+
         <p id="result" class="result" role="status" aria-live="polite" aria-atomic="true"></p>
       <% } %>
     </article>
+
+    <% if (provider && (provider.provider === 'turnstile')) { %>
+      <p class="note" style="text-align:center;margin-top:12px;font-size:0.78rem;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <%= t('providerTurnstile') %>
+      </p>
+    <% } %>
   </main>
+
   <% if (provider) { %>
-    <%# External script served with nonce — no inline JS needed, CSP-safe %>
     <script
       src="/assets/download.js"
       nonce="<%= cspNonce %>"
       data-form-id="verify-form"
       data-result-id="result"
       data-submit-id="submit-btn"
+      data-download-block-id="download-ready-block"
+      data-download-link-id="download-link"
+      data-expiry-id="expiry-countdown"
       data-msg-verifying="<%= locale === 'vi' ? 'Đang xác minh…' : 'Verifying…' %>"
       data-msg-success-prefix="<%= locale === 'vi' ? 'Xác minh thành công! Link hết hạn sau ' : 'Verified! Link expires in ' %>"
       data-msg-success-suffix="<%= locale === 'vi' ? ' giây.' : ' seconds.' %>"

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= locale === 'vi' ? 'Quản lý R2 — 888VN Admin' : 'R2 Management — 888VN Admin' %></title>
+  <link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+  <main class="container admin-container">
+
+    <!-- Top bar -->
+    <div class="top-bar admin-topbar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
+        <span class="admin-badge">Admin</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <nav class="lang-switch small" aria-label="Language selection">
+          <a href="/admin?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>">VI</a>
+          <a href="/admin?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
+        </nav>
+        <form method="POST" action="/admin/logout" style="margin:0;">
+          <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>" />
+          <button type="submit" class="button button-ghost button-sm">
+            <%= locale === 'vi' ? 'Đăng xuất' : 'Sign out' %>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Hero -->
+    <header class="hero admin-hero" style="margin-bottom:28px;">
+      <div>
+        <p class="eyebrow">888VN / R2 Hub Admin</p>
+        <h1>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px;color:var(--accent)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+          <%= locale === 'vi' ? 'Quản lý R2 File' : 'R2 File Management' %>
+        </h1>
+        <p class="hero-desc">
+          <%= locale === 'vi'
+            ? 'Xem, upload, xóa, publish/unpublish file trên Cloudflare R2. File sẽ được phân phối qua presigned URL sau khi người dùng xác minh Turnstile.'
+            : 'View, upload, delete, and publish/unpublish files on Cloudflare R2. Files are delivered via presigned URLs after Turnstile verification.' %>
+        </p>
+      </div>
+    </header>
+
+    <!-- R2 Config Status -->
+    <section class="card admin-card" id="r2-status-card" style="margin-bottom:20px;">
+      <div id="r2-config-status">
+        <div class="spinner-inline" aria-label="<%= locale === 'vi' ? 'Đang kiểm tra cấu hình R2…' : 'Checking R2 config…' %>">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          <span><%= locale === 'vi' ? 'Đang kiểm tra cấu hình R2…' : 'Checking R2 configuration…' %></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Action toolbar -->
+    <div class="admin-toolbar" id="admin-toolbar" style="margin-bottom:20px;display:none;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button type="button" id="btn-refresh" class="button button-secondary button-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <%= locale === 'vi' ? 'Làm mới' : 'Refresh' %>
+        </button>
+        <button type="button" id="btn-sync-index" class="button button-secondary button-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+          <%= locale === 'vi' ? 'Đồng bộ Index' : 'Sync Index' %>
+        </button>
+        <label class="button button-accent button-sm upload-label" for="r2-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên R2' : 'Upload file to R2' %>">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <%= locale === 'vi' ? 'Upload R2' : 'Upload to R2' %>
+        </label>
+        <input type="file" id="r2-upload-input" style="display:none;" multiple />
+      </div>
+      <div id="upload-progress" class="upload-progress" hidden></div>
+      <p id="toolbar-status" class="result" role="status" aria-live="polite"></p>
+    </div>
+
+    <!-- R2 Inventory Table -->
+    <section class="card admin-card">
+      <h2 class="admin-section-title">
+        <%= locale === 'vi' ? 'Kho R2 — File Catalog' : 'R2 Storage — File Catalog' %>
+        <span id="file-count-badge" class="count-badge" style="display:none;"></span>
+      </h2>
+      <div id="r2-inventory-wrap" class="table-wrap">
+        <div class="empty-state">
+          <span class="empty-state-icon" aria-hidden="true">🗄️</span>
+          <h3 class="empty-state-heading"><%= locale === 'vi' ? 'Chưa tải dữ liệu' : 'Not loaded yet' %></h3>
+          <p class="empty-state-message"><%= locale === 'vi' ? 'Hệ thống sẽ tự động tải sau khi trang khởi động.' : 'Data will load automatically on page start.' %></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Upload Drawer / Modal -->
+    <div id="upload-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h3 id="upload-modal-title"><%= locale === 'vi' ? 'Upload lên R2' : 'Upload to R2' %></h3>
+          <button type="button" id="upload-modal-close" class="modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
+        </div>
+        <div id="upload-modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- File Edit Modal -->
+    <div id="edit-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <h3 id="edit-modal-title"><%= locale === 'vi' ? 'Chỉnh sửa metadata file' : 'Edit file metadata' %></h3>
+          <button type="button" id="edit-modal-close" class="modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
+        </div>
+        <div id="edit-modal-body" class="modal-body"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script
+    src="/assets/admin-r2.js"
+    nonce="<%= cspNonce %>"
+    data-locale="<%= locale %>"
+    data-csrf="<%= csrfToken || '' %>"
+    data-msg-r2-ok="<%= locale === 'vi' ? 'R2 đã kết nối.' : 'R2 connected.' %>"
+    data-msg-r2-missing="<%= locale === 'vi' ? 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET_NAME trong .env.' : 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME in .env.' %>"
+    data-msg-loading="<%= locale === 'vi' ? 'Đang tải…' : 'Loading…' %>"
+    data-msg-loaded="<%= locale === 'vi' ? 'Đã tải xong.' : 'Loaded.' %>"
+    data-msg-syncing="<%= locale === 'vi' ? 'Đang đồng bộ index…' : 'Syncing index…' %>"
+    data-msg-synced="<%= locale === 'vi' ? 'Đồng bộ xong.' : 'Sync complete.' %>"
+    data-msg-uploading="<%= locale === 'vi' ? 'Đang upload…' : 'Uploading…' %>"
+    data-msg-upload-ok="<%= locale === 'vi' ? 'Upload thành công.' : 'Upload successful.' %>"
+    data-msg-upload-err="<%= locale === 'vi' ? 'Upload thất bại.' : 'Upload failed.' %>"
+    data-msg-deleting="<%= locale === 'vi' ? 'Đang xóa…' : 'Deleting…' %>"
+    data-msg-deleted="<%= locale === 'vi' ? 'Đã xóa.' : 'Deleted.' %>"
+    data-msg-delete-confirm="<%= locale === 'vi' ? 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.' : 'Are you sure you want to delete this file? This cannot be undone.' %>"
+    data-msg-saved="<%= locale === 'vi' ? 'Đã lưu thay đổi.' : 'Changes saved.' %>"
+    data-msg-published="<%= locale === 'vi' ? 'Đã publish.' : 'Published.' %>"
+    data-msg-unpublished="<%= locale === 'vi' ? 'Đã unpublish.' : 'Unpublished.' %>"
+    data-msg-no-files="<%= locale === 'vi' ? 'Chưa có file nào trong R2.' : 'No files in R2 yet.' %>"
+    data-msg-r2-unavail="<%= locale === 'vi' ? 'R2 chưa được cấu hình trên server này.' : 'R2 is not configured on this server.' %>"
+    data-col-key="R2 Key"
+    data-col-size="<%= locale === 'vi' ? 'Dung lượng' : 'Size' %>"
+    data-col-modified="<%= locale === 'vi' ? 'Cập nhật' : 'Modified' %>"
+    data-col-published="<%= locale === 'vi' ? 'Published' : 'Published' %>"
+    data-col-actions="<%= locale === 'vi' ? 'Thao tác' : 'Actions' %>"
+    data-label-edit="<%= locale === 'vi' ? 'Sửa' : 'Edit' %>"
+    data-label-delete="<%= locale === 'vi' ? 'Xóa' : 'Delete' %>"
+    data-label-publish="<%= locale === 'vi' ? 'Publish' : 'Publish' %>"
+    data-label-unpublish="<%= locale === 'vi' ? 'Unpublish' : 'Unpublish' %>"
+    data-label-title-vi="<%= locale === 'vi' ? 'Tiêu đề (VI)' : 'Title (VI)' %>"
+    data-label-title-en="<%= locale === 'vi' ? 'Tiêu đề (EN)' : 'Title (EN)' %>"
+    data-label-summary-vi="<%= locale === 'vi' ? 'Tóm tắt (VI)' : 'Summary (VI)' %>"
+    data-label-summary-en="<%= locale === 'vi' ? 'Tóm tắt (EN)' : 'Summary (EN)' %>"
+    data-label-version="<%= locale === 'vi' ? 'Phiên bản' : 'Version' %>"
+    data-label-platform="Platform"
+    data-label-save="<%= locale === 'vi' ? 'Lưu' : 'Save' %>"
+    data-label-cancel="<%= locale === 'vi' ? 'Huỷ' : 'Cancel' %>"
+    data-label-files="<%= locale === 'vi' ? 'file' : 'files' %>"
+    data-label-choose-file="<%= locale === 'vi' ? 'Chọn file để upload' : 'Choose files to upload' %>"
+    data-label-r2-path="<%= locale === 'vi' ? 'Đường dẫn R2 (để trống = tên file gốc)' : 'R2 path (leave blank = original filename)' %>"
+    data-label-upload-btn="<%= locale === 'vi' ? 'Bắt đầu upload' : 'Start upload' %>"
+  ></script>
+</body>
+</html>

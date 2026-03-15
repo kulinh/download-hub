@@ -10,3 +10,6 @@ coverage/
 dist/
 .vite/
 .DS_Store
+# Docker
+docker-compose.override.yml
+*.log

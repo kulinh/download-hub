@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="<%= locale %>">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Login</title>
+  <link rel="stylesheet" href="/assets/site.css" />
+</head>
+<body>
+  <main class="container admin-container" style="max-width:420px;margin-top:5vh">
+    <header class="hero admin-hero" style="margin-bottom:1.5rem">
+      <div>
+        <p class="eyebrow">ops / admin</p>
+        <h1><%= locale === 'vi' ? 'Đăng nhập Admin' : 'Admin Login' %></h1>
+      </div>
+    </header>
+
+    <section class="card admin-card">
+      <% if (error) { %>
+        <div class="captcha-unavailable" role="alert" style="margin-bottom:1rem">
+          <span class="captcha-unavailable-icon" aria-hidden="true">⚠️</span>
+          <div>
+            <p class="captcha-unavailable-message"><%= error %></p>
+          </div>
+        </div>
+      <% } %>
+
+      <form method="POST" action="/admin/login" autocomplete="off">
+        <div class="field-group" style="margin-bottom:1rem">
+          <label class="field-label" for="username">
+            <%= locale === 'vi' ? 'Tên đăng nhập' : 'Username' %>
+          </label>
+          <input
+            id="username"
+            name="username"
+            class="text-input"
+            type="text"
+            autocomplete="username"
+            required
+            spellcheck="false"
+          />
+        </div>
+
+        <div class="field-group" style="margin-bottom:1.25rem">
+          <label class="field-label" for="password">
+            <%= locale === 'vi' ? 'Mật khẩu' : 'Password' %>
+          </label>
+          <input
+            id="password"
+            name="password"
+            class="text-input"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <% if (hcaptcha) { %>
+          <div class="h-captcha" data-sitekey="<%= hcaptcha.siteKey %>" style="margin-bottom:1.25rem"></div>
+        <% } else { %>
+          <div class="captcha-unavailable" role="alert" style="margin-bottom:1rem">
+            <span class="captcha-unavailable-icon" aria-hidden="true">🔒</span>
+            <div>
+              <p class="captcha-unavailable-heading">
+                <%= locale === 'vi' ? 'hCaptcha chưa cấu hình' : 'hCaptcha not configured' %>
+              </p>
+            </div>
+          </div>
+        <% } %>
+
+        <button type="submit" class="button" style="width:100%">
+          <%= locale === 'vi' ? 'Đăng nhập' : 'Login' %>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <% if (hcaptcha) { %>
+    <script
+      src="<%= hcaptcha.scriptSrc %>"
+      async
+      defer
+      nonce="<%= cspNonce %>"
+    ></script>
+  <% } %>
+</body>
+</html>

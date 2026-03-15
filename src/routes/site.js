@@ -1,5 +1,5 @@
 import express from 'express';
-import { getCaptchaProviderConfig, verifyCaptchaToken } from '../lib/captcha.js';
+import { getCaptchaProviderConfig, getHcaptchaConfig, verifyHcaptchaToken, verifyTurnstileToken } from '../lib/captcha.js';
 import {
   getAllFiles,
   getFileBySlug,
@@ -15,6 +15,14 @@ import { t } from '../lib/i18n.js';
 import { buildBaseUrl, formatBytes, getServerName, pickLocale, publicError } from '../lib/utils.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
 import { enforceFormContentType, requireAdminToken } from '../middleware/security.js';
+import {
+  clearAdminSession,
+  issueAdminSession,
+  requireAdminSession,
+  requireAdminSessionPage,
+  validateAdminCredentials
+} from '../middleware/admin-auth.js';
+import { getPresignedUploadUrl, headR2Object, isR2Enabled } from '../lib/r2-storage.js';
 
 const router = express.Router();
 
@@ -36,22 +44,76 @@ router.get('/health', (_req, res) => {
   res.json({ ok: true, uptime: Math.floor(process.uptime()) });
 });
 
-// ── Admin UI + APIs ──────────────────────────────────────────────────────────
+// ── Admin: Login page ─────────────────────────────────────────────────────────
 
-router.get('/admin', async (req, res, next) => {
+router.get('/admin/login', (req, res) => {
+  const { locale, t: translate } = pageData(req);
+  const hcaptcha = getHcaptchaConfig();
+  res.render('admin-login', {
+    locale,
+    t: translate,
+    hcaptcha,
+    cspNonce: res.locals.cspNonce,
+    error: null
+  });
+});
+
+router.post('/admin/login', enforceFormContentType, simpleRateLimit, async (req, res, next) => {
+  try {
+    const { locale, t: translate } = pageData(req);
+    const hcaptcha = getHcaptchaConfig();
+    const { username, password } = req.body || {};
+
+    const renderLogin = (error) => res.status(401).render('admin-login', {
+      locale,
+      t: translate,
+      hcaptcha,
+      cspNonce: res.locals.cspNonce,
+      error
+    });
+
+    // 1. Verify hCaptcha
+    const captcha = await verifyHcaptchaToken(req);
+    if (!captcha.success) {
+      return renderLogin(locale === 'vi' ? 'Xác minh captcha thất bại.' : 'Captcha verification failed.');
+    }
+
+    // 2. Validate credentials
+    if (!validateAdminCredentials(username, password)) {
+      return renderLogin(locale === 'vi' ? 'Tên đăng nhập hoặc mật khẩu không đúng.' : 'Invalid username or password.');
+    }
+
+    // 3. Issue session
+    issueAdminSession(res);
+    res.redirect(302, '/admin');
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/admin/logout', (req, res) => {
+  clearAdminSession(res);
+  res.redirect(302, '/admin/login');
+});
+
+// ── Admin UI (requires session) ───────────────────────────────────────────────
+
+router.get('/admin', requireAdminSessionPage, async (req, res, next) => {
   try {
     const { locale, t: translate } = pageData(req);
     res.render('admin', {
       locale,
       t: translate,
-      adminEnabled: Boolean(config.adminBearerToken)
+      r2Enabled: isR2Enabled()
     });
   } catch (error) {
     next(error);
   }
 });
 
-router.get('/api/admin/files', requireAdminToken, async (req, res, next) => {
+// ── Admin APIs (require session) ──────────────────────────────────────────────
+
+router.get('/api/admin/files', requireAdminSession, async (req, res, next) => {
   try {
     const [entries, scanned] = await Promise.all([
       getAllFiles(),
@@ -92,20 +154,35 @@ router.get('/api/admin/files', requireAdminToken, async (req, res, next) => {
         slug: item.slug
       }));
 
+    // R2 inventory preview (optional)
+    let r2Objects = [];
+    if (isR2Enabled()) {
+      try {
+        r2Objects = await listR2Objects();
+      } catch (err) {
+        r2Objects = [{ error: err.message }];
+      }
+    }
+
     res.json({
       ok: true,
       files,
       extraDiskFiles,
       storagePath: config.filesStoragePath,
       filesIndexPath: config.filesIndexPath,
-      adminEnabled: Boolean(config.adminBearerToken)
+      r2: {
+        enabled: isR2Enabled(),
+        bucket: config.r2.bucket,
+        accountId: config.r2.accountId,
+        objects: r2Objects
+      }
     });
   } catch (error) {
     next(error);
   }
 });
 
-router.post('/api/admin/sync', requireAdminToken, async (req, res, next) => {
+router.post('/api/admin/sync', requireAdminSession, async (req, res, next) => {
   try {
     const result = await syncFilesIndexFromDisk();
     res.json({
@@ -121,7 +198,68 @@ router.post('/api/admin/sync', requireAdminToken, async (req, res, next) => {
   }
 });
 
-router.post('/api/admin/reload', requireAdminToken, async (req, res, next) => {
+router.post('/api/admin/reload', requireAdminSession, async (req, res, next) => {
+  try {
+    const files = await reloadFiles();
+    res.json({ ok: true, count: files.length });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/admin/r2/presign-upload
+ * Generate a presigned PUT URL for direct-to-R2 upload from admin panel.
+ * Query params: key (R2 object key), contentType
+ */
+router.get('/api/admin/r2/presign-upload', requireAdminSession, async (req, res, next) => {
+  try {
+    if (!isR2Enabled()) {
+      return res.status(400).json({ ok: false, error: 'r2_not_enabled' });
+    }
+    const { key, contentType } = req.query;
+    if (!key || typeof key !== 'string' || key.trim() === '') {
+      return res.status(400).json({ ok: false, error: 'key_required' });
+    }
+    const mimeType = typeof contentType === 'string' && contentType.trim()
+      ? contentType.trim()
+      : 'application/octet-stream';
+
+    const url = await getPresignedUploadUrl(key.trim(), mimeType);
+    res.json({ ok: true, url, key: key.trim(), expiresIn: 900 });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/admin/r2/head
+ * Check R2 object existence and metadata.
+ * Query params: key
+ */
+router.get('/api/admin/r2/head', requireAdminSession, async (req, res, next) => {
+  try {
+    if (!isR2Enabled()) {
+      return res.status(400).json({ ok: false, error: 'r2_not_enabled' });
+    }
+    const { key } = req.query;
+    if (!key || typeof key !== 'string') {
+      return res.status(400).json({ ok: false, error: 'key_required' });
+    }
+    const meta = await headR2Object(key.trim());
+    if (!meta) {
+      return res.status(404).json({ ok: false, exists: false, error: 'not_found' });
+    }
+    res.json({ ok: true, exists: true, ...meta });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ── Legacy: bearer token reload (backward compat) ────────────────────────────
+// Kept for CI/CD pipelines that already use ADMIN_BEARER_TOKEN
+
+router.post('/api/admin/reload-legacy', requireAdminToken, async (req, res, next) => {
   try {
     const files = await reloadFiles();
     res.json({ ok: true, count: files.length });
@@ -162,7 +300,6 @@ router.get('/download/:slug', async (req, res, next) => {
       throw publicError('Không tìm thấy file tải.', 'Download file not found.', locale, 404);
     }
     const provider = getCaptchaProviderConfig();
-    // provider may be null — template handles graceful "captcha unavailable" state
     res.render('download', {
       locale,
       t: translate,
@@ -175,7 +312,7 @@ router.get('/download/:slug', async (req, res, next) => {
   }
 });
 
-// ── API: verify captcha, issue download token ─────────────────────────────────
+// ── API: verify captcha (Turnstile), issue download token ─────────────────────
 
 router.post('/api/verify/:slug', simpleRateLimit, enforceFormContentType, async (req, res, next) => {
   try {
@@ -185,10 +322,7 @@ router.post('/api/verify/:slug', simpleRateLimit, enforceFormContentType, async 
       throw publicError('Không tìm thấy file tải.', 'Download file not found.', locale, 404);
     }
 
-    const captcha = await verifyCaptchaToken(req);
-    if (!captcha.provider) {
-      throw publicError('Chưa cấu hình captcha hợp lệ.', 'No valid captcha provider is configured.', locale, 500);
-    }
+    const captcha = await verifyTurnstileToken(req);
     if (!captcha.success) {
       throw publicError('Xác minh captcha thất bại. Vui lòng thử lại.', 'Captcha verification failed. Please try again.', locale, 403);
     }
@@ -230,6 +364,11 @@ router.get('/files/:slug', async (req, res, next) => {
         locale,
         403
       );
+    }
+
+    // R2 path: absolutePath not needed
+    if (isR2Enabled() && (fileItem.storage?.r2Key || fileItem.storage?.relativePath)) {
+      return await streamDownload(fileItem, req, res, null);
     }
 
     const absolutePath = await resolveStoragePath(fileItem);
