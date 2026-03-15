@@ -19,14 +19,14 @@ const helmetMiddleware = helmet({
         "'self'",
         (req, res) => `'nonce-${res.locals.cspNonce}'`,
         'https://challenges.cloudflare.com',
-        'https://js.hcaptcha.com',
-        'https://hcaptcha.com'
+        'https://hcaptcha.com',
+        'https://*.hcaptcha.com'
       ],
       frameSrc: [
         "'self'",
         'https://challenges.cloudflare.com',
-        'https://js.hcaptcha.com',
-        'https://hcaptcha.com'
+        'https://hcaptcha.com',
+        'https://*.hcaptcha.com'
       ],
       // unsafe-inline kept for captcha widget injected styles; nonce covers app scripts
       styleSrc: ["'self'", "'unsafe-inline'"],
@@ -35,7 +35,8 @@ const helmetMiddleware = helmet({
         "'self'",
         'https://challenges.cloudflare.com',
         'https://api.hcaptcha.com',
-        'https://hcaptcha.com'
+        'https://hcaptcha.com',
+        'https://*.hcaptcha.com'
       ],
       objectSrc: ["'none'"],
       baseUri: ["'self'"],
