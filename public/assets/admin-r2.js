@@ -136,7 +136,7 @@
       if (data.r2Configured || data.localAvailable) {
         r2StatusCard.innerHTML = '<div class="alert alert-success"><span aria-hidden="true">✅</span> ' + esc(data.r2Configured ? msgs.r2Ok : msgs.r2LocalOnly) + '</div>';
         if (adminToolbar) adminToolbar.style.display = '';
-        loadInventory(data.r2Configured);
+        loadInventory({ r2Configured: data.r2Configured, localAvailable: data.localAvailable });
       } else {
         r2StatusCard.innerHTML = '<div class="alert alert-warn"><span aria-hidden="true">⚠️</span> ' + esc(msgs.r2Missing) + '</div>';
         if (inventoryWrap) {
