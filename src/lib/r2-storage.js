@@ -92,6 +92,22 @@ export async function getPresignedUploadUrl(r2Key, contentType, expiresIn = 900)
   });
 }
 
+export async function uploadBufferToR2(r2Key, buffer, contentType = 'application/octet-stream') {
+  const client = getR2Client();
+  const command = new PutObjectCommand({
+    Bucket: config.r2.bucket,
+    Key: r2Key,
+    Body: buffer,
+    ContentType: contentType
+  });
+  await client.send(command);
+  return {
+    key: r2Key,
+    sizeBytes: buffer?.length || 0,
+    contentType
+  };
+}
+
 export async function headR2Object(r2Key) {
   const client = getR2Client();
   try {

@@ -52,7 +52,7 @@ import {
   sha256File
 } from '../lib/file-store.js';
 import { isR2Configured, listR2Objects, deleteR2Object, getPresignedDownloadUrl } from '../lib/r2-client.js';
-import { getPresignedUploadUrl as getSdkPresignedUploadUrl, isR2Enabled, shouldUseLocalStorage } from '../lib/r2-storage.js';
+import { getPresignedUploadUrl as getSdkPresignedUploadUrl, isR2Enabled, shouldUseLocalStorage, uploadBufferToR2 } from '../lib/r2-storage.js';
 import {
   clearAdminSession,
   issueAdminSession,
@@ -181,7 +181,9 @@ router.get('/admin/r2', requireAdminSessionPage, (req, res, next) => {
       locale,
       t: translate,
       csrfToken: res.locals.adminCsrfToken || '',
-      cspNonce: res.locals.cspNonce
+      cspNonce: res.locals.cspNonce,
+      localStorageEnabled: config.storageProviders?.local,
+      r2Enabled: isR2Enabled()
     });
   } catch (err) {
     next(err);
@@ -195,6 +197,7 @@ router.get('/api/admin/r2/status', requireAdminSession, (req, res) => {
   res.json({
     ok: true,
     r2Configured: configured,
+    localAvailable: config.storageProviders?.local,
     bucket: configured ? config.r2?.bucket : null
   });
 });
@@ -499,11 +502,11 @@ router.get('/api/admin/local/files', requireAdminSession, async (req, res, next)
 
     const scannedByPath = new Map(scanned.map((item) => [item.relativePath, item]));
     const files = catalogRaw
-      .filter((entry) => !isR2Enabled() || shouldUseLocalStorage() || !getStorageObjectKey(entry))
+      .filter((entry) => shouldUseLocalStorage() || !isR2Enabled() || !getStorageObjectKey(entry) || entry.storageProvider === 'local')
       .map((entry) => {
         const disk = entry.storage?.relativePath ? scannedByPath.get(entry.storage.relativePath) : null;
         return {
-          slug: entry.slug,
+          slug: entry.slug || entry.storage?.relativePath,
           title: entry.title,
           summary: entry.summary,
           version: entry.version,

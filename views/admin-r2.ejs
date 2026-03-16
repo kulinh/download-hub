@@ -33,6 +33,11 @@
     <header class="hero admin-hero" style="margin-bottom:28px;">
       <div>
         <p class="eyebrow">Download Hub / R2 Admin</p>
+        <% if (localStorageEnabled && !r2Enabled) { %>
+          <p class="note" style="color:var(--color-warn,#f59e0b);margin-top:6px;">
+            <%= locale === 'vi' ? 'Đang dùng lưu trữ cục bộ (R2 tắt).' : 'Using local storage only (R2 disabled).' %>
+          </p>
+        <% } %>
         <h1>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px;color:var(--accent)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
           <%= locale === 'vi' ? 'Quản lý Storage' : 'Storage Management' %>
@@ -71,6 +76,13 @@
           <%= locale === 'vi' ? 'Upload R2' : 'Upload to R2' %>
         </label>
         <input type="file" id="r2-upload-input" style="display:none;" multiple />
+        <% if (localStorageEnabled) { %>
+          <label class="button button-secondary button-sm upload-label" for="local-upload-input" aria-label="<%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21h9"/><path d="M12 12v9"/><path d="M12 8V3"/><path d="M5 21h3"/></svg>
+            <%= locale === 'vi' ? 'Upload local' : 'Upload local' %>
+          </label>
+          <input type="file" id="local-upload-input" style="display:none;" multiple />
+        <% } %>
       </div>
       <div id="upload-progress" class="upload-progress" hidden></div>
       <p id="toolbar-status" class="result" role="status" aria-live="polite"></p>
@@ -122,6 +134,7 @@
     data-csrf="<%= csrfToken || '' %>"
     data-msg-r2-ok="<%= locale === 'vi' ? 'R2 đã kết nối.' : 'R2 connected.' %>"
     data-msg-r2-missing="<%= locale === 'vi' ? 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET trong .env.' : 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET in .env.' %>"
+    data-msg-r2-local-only="<%= locale === 'vi' ? 'Chỉ dùng lưu cục bộ (R2 tắt).' : 'Using local storage (R2 disabled).' %>"
     data-msg-loading="<%= locale === 'vi' ? 'Đang tải…' : 'Loading…' %>"
     data-msg-loaded="<%= locale === 'vi' ? 'Đã tải xong.' : 'Loaded.' %>"
     data-msg-syncing="<%= locale === 'vi' ? 'Đang đồng bộ index…' : 'Syncing index…' %>"
@@ -137,7 +150,7 @@
     data-msg-unpublished="<%= locale === 'vi' ? 'Đã unpublish.' : 'Unpublished.' %>"
     data-msg-no-files="<%= locale === 'vi' ? 'Chưa có file nào trong R2.' : 'No files in R2 yet.' %>"
     data-msg-r2-unavail="<%= locale === 'vi' ? 'R2 chưa được cấu hình trên server này.' : 'R2 is not configured on this server.' %>"
-    data-col-key="R2 Key"
+    data-col-key="<%= locale === 'vi' ? (r2Enabled ? 'Khóa R2' : 'Đường dẫn (local)') : (r2Enabled ? 'R2 Key' : 'Path (local)') %>"
     data-col-size="<%= locale === 'vi' ? 'Dung lượng' : 'Size' %>"
     data-col-modified="<%= locale === 'vi' ? 'Cập nhật' : 'Modified' %>"
     data-col-published="<%= locale === 'vi' ? 'Published' : 'Published' %>"
