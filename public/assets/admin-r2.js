@@ -116,6 +116,9 @@
     if (options && options.headers) {
       merged.headers = Object.assign({}, defaults.headers, options.headers);
     }
+    if (!merged.method && /^\/api\/admin\/(r2|local)\/files\//.test(url)) {
+      merged.method = 'DELETE';
+    }
     const resp = await fetch(url, merged);
     let data;
     try { data = await resp.json(); } catch (_) { data = { ok: false, error: 'invalid_json' }; }
