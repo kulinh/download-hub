@@ -88,10 +88,10 @@
       <p id="toolbar-status" class="result" role="status" aria-live="polite"></p>
     </div>
 
-    <!-- R2 Inventory Table -->
+    <!-- Storage Inventory Table -->
     <section class="card admin-card">
       <h2 class="admin-section-title">
-        <%= locale === 'vi' ? 'Kho R2 — File Catalog' : 'R2 Storage — File Catalog' %>
+        <%= locale === 'vi' ? 'Kho file — Catalog' : 'Storage — File Catalog' %>
         <span id="file-count-badge" class="count-badge" style="display:none;"></span>
       </h2>
       <div id="r2-inventory-wrap" class="table-wrap">
@@ -152,7 +152,7 @@
     data-msg-unpublished="<%= locale === 'vi' ? 'Đã unpublish.' : 'Unpublished.' %>"
     data-msg-no-files="<%= locale === 'vi' ? 'Chưa có file nào trong R2.' : 'No files in R2 yet.' %>"
     data-msg-r2-unavail="<%= locale === 'vi' ? 'R2 chưa được cấu hình trên server này.' : 'R2 is not configured on this server.' %>"
-    data-col-key="<%= locale === 'vi' ? (r2Enabled ? 'Khóa R2' : 'Đường dẫn (local)') : (r2Enabled ? 'R2 Key' : 'Path (local)') %>"
+    data-col-key="<%= locale === 'vi' ? 'Đường dẫn / Key' : 'Path / Key' %>"
     data-col-size="<%= locale === 'vi' ? 'Dung lượng' : 'Size' %>"
     data-col-modified="<%= locale === 'vi' ? 'Cập nhật' : 'Modified' %>"
     data-col-published="<%= locale === 'vi' ? 'Published' : 'Published' %>"

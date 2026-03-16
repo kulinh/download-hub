@@ -11,6 +11,8 @@
 
   const locale = script.dataset.locale || 'en';
   const csrf = script.dataset.csrf || '';
+  let r2ConfiguredFlag = false;
+  let localAvailableFlag = false;
 
   const msgs = {
     r2Ok: script.dataset.msgR2Ok,
@@ -133,10 +135,12 @@
   async function checkR2Config() {
     try {
       const data = await apiFetch('/api/admin/r2/status');
+      r2ConfiguredFlag = Boolean(data.r2Configured);
+      localAvailableFlag = Boolean(data.localAvailable);
       if (data.r2Configured || data.localAvailable) {
         r2StatusCard.innerHTML = '<div class="alert alert-success"><span aria-hidden="true">✅</span> ' + esc(data.r2Configured ? msgs.r2Ok : msgs.r2LocalOnly) + '</div>';
         if (adminToolbar) adminToolbar.style.display = '';
-        loadInventory({ r2Configured: data.r2Configured, localAvailable: data.localAvailable });
+        loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
       } else {
         r2StatusCard.innerHTML = '<div class="alert alert-warn"><span aria-hidden="true">⚠️</span> ' + esc(msgs.r2Missing) + '</div>';
         if (inventoryWrap) {
@@ -153,8 +157,11 @@
   let currentFiles = [];
 
   async function loadInventory(options = {}) {
-    const r2Configured = Boolean(options.r2Configured);
-    const localAvailable = Boolean(options.localAvailable);
+    // Allow callers to override but persist flags from config check.
+    const r2Configured = options.r2Configured !== undefined ? Boolean(options.r2Configured) : r2ConfiguredFlag;
+    const localAvailable = options.localAvailable !== undefined ? Boolean(options.localAvailable) : localAvailableFlag;
+    r2ConfiguredFlag = r2Configured;
+    localAvailableFlag = localAvailable;
     setStatus('pending', msgs.loading);
     try {
       const promises = [];
@@ -192,7 +199,7 @@
       }
 
       currentFiles = merged;
-      renderInventory(currentFiles);
+      renderInventory(currentFiles, { r2Configured, localAvailable });
       if (fileBadge) {
         fileBadge.style.display = '';
         fileBadge.textContent = currentFiles.length + ' ' + labels.files;
@@ -203,7 +210,8 @@
     }
   }
 
-  function renderInventory(files) {
+  function renderInventory(files, opts = {}) {
+    const r2Configured = Boolean(opts.r2Configured);
     if (!inventoryWrap) return;
     if (!files.length) {
       inventoryWrap.innerHTML = '<div class="empty-state"><span class="empty-state-icon" aria-hidden="true">📭</span>' +
@@ -220,24 +228,23 @@
         ? '<button class="button button-ghost button-xs btn-unpublish" data-slug="' + esc(file.slug || file.r2Key || file.storage?.relativePath) + '">' + esc(labels.unpublish) + '</button>'
         : '<button class="button button-ghost button-xs btn-publish" data-slug="' + esc(file.slug || file.r2Key || file.storage?.relativePath) + '">' + esc(labels.publish) + '</button>';
       const slugOrKey = file.slug || file.r2Key || file.storage?.relativePath;
-      const keyCell = r2Configured
-        ? '<code class="r2-key-cell" title="' + esc(file.r2Key || '') + '">' + esc(file.r2Key || '—') + '</code>'
-        : '<code class="r2-key-cell" title="' + esc(file.storage?.relativePath || '') + '">' + esc(file.storage?.relativePath || '—') + '</code>';
-
       const storageProvider = file.storageProvider || file.storage?.provider || (r2Configured ? 'r2' : 'local');
       const badge = storageProvider === 'local'
         ? '<span class="r2-badge">LOCAL</span>'
         : '<span class="r2-badge">R2</span>';
+      const keyCellValue = storageProvider === 'local'
+        ? (file.storage?.relativePath || file.slug || '—')
+        : (file.r2Key || file.storage?.objectKey || '—');
 
       return '<tr>' +
-        '<td>' + badge + ' ' + keyCell + '</td>' +
+        '<td>' + badge + ' <code class="r2-key-cell" title="' + esc(keyCellValue) + '">' + esc(keyCellValue) + '</code></td>' +
         '<td class="num-cell">' + esc(formatBytes(file.sizeBytes)) + '</td>' +
         '<td class="date-cell">' + esc(formatDate(file.updatedAt || file.lastModified)) + '</td>' +
         '<td class="center-cell">' + publishedCell + '</td>' +
         '<td class="actions-cell">' +
-          '<button class="button button-secondary button-xs btn-edit" data-slug="' + esc(slugOrKey) + '">' + esc(labels.edit) + '</button> ' +
-          pubBtn + ' ' +
-          '<button class="button button-danger button-xs btn-delete" data-slug="' + esc(slugOrKey) + '" data-key="' + esc(file.r2Key || file.storage?.relativePath || '') + '">' + esc(labels.delete) + '</button>' +
+          '<button class="button button-secondary button-xs btn-edit" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.edit) + '</button> ' +
+          pubBtn.replace('button-ghost', 'button-ghost" data-provider="' + esc(storageProvider)) + ' ' +
+          '<button class="button button-danger button-xs btn-delete" data-slug="' + esc(slugOrKey) + '" data-key="' + esc(file.r2Key || file.storage?.relativePath || '') + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.delete) + '</button>' +
         '</td>' +
       '</tr>';
     });
@@ -253,16 +260,16 @@
 
     // Bind row actions
     inventoryWrap.querySelectorAll('.btn-edit').forEach(function (btn) {
-      btn.addEventListener('click', function () { openEditModal(btn.dataset.slug, r2Configured); });
+      btn.addEventListener('click', function () { openEditModal(btn.dataset.slug, btn.dataset.provider || 'r2'); });
     });
     inventoryWrap.querySelectorAll('.btn-delete').forEach(function (btn) {
-      btn.addEventListener('click', function () { deleteFile(btn.dataset.slug, btn.dataset.key, r2Configured); });
+      btn.addEventListener('click', function () { deleteFile(btn.dataset.slug, btn.dataset.key, btn.dataset.provider || 'r2'); });
     });
     inventoryWrap.querySelectorAll('.btn-publish').forEach(function (btn) {
-      btn.addEventListener('click', function () { togglePublish(btn.dataset.slug, true, r2Configured); });
+      btn.addEventListener('click', function () { togglePublish(btn.dataset.slug, true, btn.dataset.provider || 'r2'); });
     });
     inventoryWrap.querySelectorAll('.btn-unpublish').forEach(function (btn) {
-      btn.addEventListener('click', function () { togglePublish(btn.dataset.slug, false, r2Configured); });
+      btn.addEventListener('click', function () { togglePublish(btn.dataset.slug, false, btn.dataset.provider || 'r2'); });
     });
   }
 
@@ -285,7 +292,7 @@
     try {
       const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
       await apiFetch(endpoint + encodeURIComponent(slug), { method: 'DELETE' });
-      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
+      await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
       setStatus('success', msgs.deleted);
     } catch (err) {
       setStatus('error', err.message);
@@ -301,7 +308,7 @@
         method: 'PATCH',
         body: JSON.stringify({ published: publish })
       });
-      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
+      await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
       setStatus('success', publish ? msgs.published : msgs.unpublished);
     } catch (err) {
       setStatus('error', err.message);
@@ -309,10 +316,10 @@
   }
 
   // --- Edit modal ---
-  function openEditModal(slug, r2Configured = true) {
+  function openEditModal(slug, provider = 'r2') {
     const file = currentFiles.find(function (f) { return (f.slug || f.r2Key || f.storage?.relativePath) === slug; });
     if (!file || !editModal || !editModalBody) return;
-    const storageProvider = file.storageProvider || file.storage?.provider || 'r2';
+    const storageProvider = provider || file.storageProvider || file.storage?.provider || 'r2';
 
     const titleVi = (file.title && file.title.vi) || '';
     const titleEn = (file.title && file.title.en) || '';
@@ -370,7 +377,7 @@
           })
         });
         closeEditModal();
-        await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
+        await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
         setStatus('success', msgs.saved);
       } catch (err) {
         statusEl.className = 'result result-error';
@@ -466,16 +473,29 @@
             });
 
             // 2. PUT to presigned URL
-            const putResp = await fetch(presignData.uploadUrl, {
-              method: 'PUT',
-              headers: { 'Content-Type': f.type || 'application/octet-stream' },
-              body: f
-            });
+            let putResp;
+            try {
+              putResp = await fetch(presignData.uploadUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': f.type || 'application/octet-stream' },
+                body: f
+              });
+            } catch (networkErr) {
+              throw new Error(msgs.r2PutFailed + ' [network/CORS error: ' + (networkErr?.message || 'failed to fetch') + ']');
+            }
 
             if (!putResp.ok) {
-              const corsHint = putResp.type === 'opaque' ? ' (CORS/credentials?)' : '';
-              const statusHint = putResp.status ? 'status ' + putResp.status : 'network_error';
-              throw new Error(msgs.r2PutFailed + ' [' + statusHint + corsHint + ']');
+              let statusHint = putResp.status ? 'status ' + putResp.status : 'network_error';
+              let bodySnippet = '';
+              try {
+                if (putResp.type !== 'opaque') {
+                  const text = await putResp.text();
+                  if (text) bodySnippet = ' body: ' + text.slice(0, 200);
+                } else {
+                  statusHint += ' (opaque/CORS)';
+                }
+              } catch (_) { /* ignore */ }
+              throw new Error(msgs.r2PutFailed + ' [' + statusHint + ']' + (bodySnippet || ''));
             }
 
             // 3. Confirm upload to backend
@@ -493,7 +513,7 @@
         }
       }
 
-      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
+      await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
     });
   }
 
