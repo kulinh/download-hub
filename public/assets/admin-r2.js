@@ -30,7 +30,9 @@
     published: script.dataset.msgPublished,
     unpublished: script.dataset.msgUnpublished,
     noFiles: script.dataset.msgNoFiles,
-    r2Unavail: script.dataset.msgR2Unavail
+    r2Unavail: script.dataset.msgR2Unavail,
+    r2PutFailed: script.dataset.msgR2PutFailed || 'R2 upload failed',
+    r2CORS: script.dataset.msgR2Cors || 'Check R2 CORS config and accountId/bucket'
   };
 
   const labels = {
@@ -70,6 +72,7 @@
   const uploadModal = document.getElementById('upload-modal');
   const uploadModalBody = document.getElementById('upload-modal-body');
   const uploadModalClose = document.getElementById('upload-modal-close');
+  const uploadModalTitle = document.getElementById('upload-modal-title');
   const editModal = document.getElementById('edit-modal');
   const editModalBody = document.getElementById('edit-modal-body');
   const editModalClose = document.getElementById('edit-modal-close');
@@ -149,13 +152,47 @@
   // --- Load R2 inventory ---
   let currentFiles = [];
 
-  async function loadInventory(r2Configured = true) {
+  async function loadInventory(options = {}) {
+    const r2Configured = Boolean(options.r2Configured);
+    const localAvailable = Boolean(options.localAvailable);
     setStatus('pending', msgs.loading);
     try {
-      const endpoint = r2Configured ? '/api/admin/r2/files' : '/api/admin/local/files';
-      const data = await apiFetch(endpoint);
-      currentFiles = data.files || [];
-      renderInventory(currentFiles, r2Configured);
+      const promises = [];
+      if (r2Configured) {
+        promises.push(apiFetch('/api/admin/r2/files'));
+      } else {
+        promises.push(Promise.resolve(null));
+      }
+      if (localAvailable) {
+        promises.push(apiFetch('/api/admin/local/files'));
+      } else {
+        promises.push(Promise.resolve(null));
+      }
+
+      const [r2Data, localData] = await Promise.all(promises);
+      const merged = [];
+      const seen = new Set();
+
+      if (r2Data?.files?.length) {
+        r2Data.files.forEach((f) => {
+          const key = (f.storageProvider || 'r2') + ':' + (f.slug || f.r2Key || f.storage?.relativePath || '');
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push({ ...f, storageProvider: f.storageProvider || f.storage?.provider || 'r2' });
+        });
+      }
+
+      if (localData?.files?.length) {
+        localData.files.forEach((f) => {
+          const key = (f.storageProvider || 'local') + ':' + (f.slug || f.r2Key || f.storage?.relativePath || '');
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push({ ...f, storageProvider: f.storageProvider || f.storage?.provider || 'local' });
+        });
+      }
+
+      currentFiles = merged;
+      renderInventory(currentFiles);
       if (fileBadge) {
         fileBadge.style.display = '';
         fileBadge.textContent = currentFiles.length + ' ' + labels.files;
@@ -166,7 +203,7 @@
     }
   }
 
-  function renderInventory(files, r2Configured = true) {
+  function renderInventory(files) {
     if (!inventoryWrap) return;
     if (!files.length) {
       inventoryWrap.innerHTML = '<div class="empty-state"><span class="empty-state-icon" aria-hidden="true">📭</span>' +
@@ -187,8 +224,13 @@
         ? '<code class="r2-key-cell" title="' + esc(file.r2Key || '') + '">' + esc(file.r2Key || '—') + '</code>'
         : '<code class="r2-key-cell" title="' + esc(file.storage?.relativePath || '') + '">' + esc(file.storage?.relativePath || '—') + '</code>';
 
+      const storageProvider = file.storageProvider || file.storage?.provider || (r2Configured ? 'r2' : 'local');
+      const badge = storageProvider === 'local'
+        ? '<span class="r2-badge">LOCAL</span>'
+        : '<span class="r2-badge">R2</span>';
+
       return '<tr>' +
-        '<td>' + keyCell + '</td>' +
+        '<td>' + badge + ' ' + keyCell + '</td>' +
         '<td class="num-cell">' + esc(formatBytes(file.sizeBytes)) + '</td>' +
         '<td class="date-cell">' + esc(formatDate(file.updatedAt || file.lastModified)) + '</td>' +
         '<td class="center-cell">' + publishedCell + '</td>' +
@@ -229,7 +271,7 @@
     setStatus('pending', msgs.syncing);
     try {
       await apiFetch('/api/admin/r2/sync', { method: 'POST' });
-      await loadInventory();
+      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
       setStatus('success', msgs.synced);
     } catch (err) {
       setStatus('error', err.message);
@@ -237,13 +279,13 @@
   }
 
   // --- Delete ---
-  async function deleteFile(slug, key, r2Configured = true) {
+  async function deleteFile(slug, key, storageProvider = 'r2') {
     if (!confirm(msgs.deleteConfirm)) return;
     setStatus('pending', msgs.deleting);
     try {
-      const endpoint = r2Configured ? '/api/admin/r2/files/' : '/api/admin/local/files/';
+      const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
       await apiFetch(endpoint + encodeURIComponent(slug), { method: 'DELETE' });
-      await loadInventory(r2Configured);
+      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
       setStatus('success', msgs.deleted);
     } catch (err) {
       setStatus('error', err.message);
@@ -251,15 +293,15 @@
   }
 
   // --- Toggle publish ---
-  async function togglePublish(slug, publish, r2Configured = true) {
+  async function togglePublish(slug, publish, storageProvider = 'r2') {
     setStatus('pending', msgs.loading);
     try {
-      const endpoint = r2Configured ? '/api/admin/r2/files/' : '/api/admin/local/files/';
+      const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
       await apiFetch(endpoint + encodeURIComponent(slug) + '/publish', {
         method: 'PATCH',
         body: JSON.stringify({ published: publish })
       });
-      await loadInventory(r2Configured);
+      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
       setStatus('success', publish ? msgs.published : msgs.unpublished);
     } catch (err) {
       setStatus('error', err.message);
@@ -270,6 +312,7 @@
   function openEditModal(slug, r2Configured = true) {
     const file = currentFiles.find(function (f) { return (f.slug || f.r2Key || f.storage?.relativePath) === slug; });
     if (!file || !editModal || !editModalBody) return;
+    const storageProvider = file.storageProvider || file.storage?.provider || 'r2';
 
     const titleVi = (file.title && file.title.vi) || '';
     const titleEn = (file.title && file.title.en) || '';
@@ -316,7 +359,7 @@
       statusEl.className = 'result result-pending';
       statusEl.textContent = msgs.loading;
       try {
-        const endpoint = r2Configured ? '/api/admin/r2/files/' : '/api/admin/local/files/';
+        const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
         await apiFetch(endpoint + encodeURIComponent(slug) + '/metadata', {
           method: 'PATCH',
           body: JSON.stringify({
@@ -327,7 +370,7 @@
           })
         });
         closeEditModal();
-        await loadInventory(r2Configured);
+        await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
         setStatus('success', msgs.saved);
       } catch (err) {
         statusEl.className = 'result result-error';
@@ -363,6 +406,10 @@
       '</div>' +
       '<div id="upload-results" class="upload-results"></div>';
 
+    if (uploadModalTitle) {
+      uploadModalTitle.textContent = useLocal ? (locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage') : (locale === 'vi' ? 'Upload lên R2' : 'Upload to R2');
+    }
+
     uploadModal.hidden = false;
 
     document.getElementById('upload-cancel-btn').addEventListener('click', closeUploadModal);
@@ -394,8 +441,12 @@
               },
               body: f
             });
-            const uploadData = await uploadRes.json();
-            if (!uploadRes.ok || !uploadData.ok) throw new Error(uploadData.error || 'local_upload_failed');
+            const uploadText = await uploadRes.text();
+            let uploadData = {};
+            try { uploadData = JSON.parse(uploadText); } catch (_) { /* noop */ }
+            if (!uploadRes.ok || !uploadData.ok) {
+              throw new Error(uploadData.error || ('local_upload_failed (' + (uploadRes.status || 'network') + ')'));
+            }
 
             await apiFetch('/api/admin/local/confirm', {
               method: 'POST',
@@ -421,7 +472,11 @@
               body: f
             });
 
-            if (!putResp.ok) throw new Error('r2_put_failed_' + putResp.status);
+            if (!putResp.ok) {
+              const corsHint = putResp.type === 'opaque' ? ' (CORS/credentials?)' : '';
+              const statusHint = putResp.status ? 'status ' + putResp.status : 'network_error';
+              throw new Error(msgs.r2PutFailed + ' [' + statusHint + corsHint + ']');
+            }
 
             // 3. Confirm upload to backend
             await apiFetch('/api/admin/r2/upload-confirm', {
@@ -438,7 +493,7 @@
         }
       }
 
-      await loadInventory(!useLocal);
+      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
     });
   }
 
@@ -469,7 +524,7 @@
   });
 
   // --- Toolbar button bindings ---
-  if (btnRefresh) btnRefresh.addEventListener('click', loadInventory);
+  if (btnRefresh) btnRefresh.addEventListener('click', function () { loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) }); });
   if (btnSyncIndex) btnSyncIndex.addEventListener('click', syncIndex);
 
   if (uploadInput) {
@@ -488,6 +543,11 @@
         localUploadInput.value = '';
       }
     });
+  }
+
+  // Label text based on storage option
+  if (uploadInput && uploadInput.labels && uploadInput.labels[0]) {
+    uploadInput.labels[0].querySelector('.upload-label-text');
   }
 
   // --- Init ---

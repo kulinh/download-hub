@@ -239,8 +239,10 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
           objectKey: obj.key,
           r2Key: obj.key,
           relativePath: catalog?.storage?.relativePath || obj.key,
-          downloadName: getStorageDownloadName(catalog || { storage: { objectKey: obj.key } })
+          downloadName: getStorageDownloadName(catalog || { storage: { objectKey: obj.key } }),
+          provider: 'r2'
         },
+        storageProvider: 'r2',
         r2: { key: obj.key, downloadName: getStorageDownloadName(catalog || { storage: { objectKey: obj.key } }) },
         inCatalog: Boolean(catalog)
       });
@@ -263,7 +265,8 @@ router.get('/api/admin/r2/files', requireAdminSession, async (req, res, next) =>
           published: Boolean(entry.published),
           featured: Boolean(entry.featured),
           updatedAt: entry.updatedAt,
-          storage: entry.storage,
+          storage: { ...(entry.storage || {}), provider: 'r2' },
+          storageProvider: 'r2',
           r2: { ...(entry.r2 || {}), key: entryKey, downloadName: getStorageDownloadName(entry) },
           inCatalog: true,
           r2Missing: true
@@ -517,7 +520,8 @@ router.get('/api/admin/local/files', requireAdminSession, async (req, res, next)
           sizeBytes: entry.sizeBytes,
           checksumSha256: entry.checksumSha256,
           mimeType: entry.mimeType,
-          storage: entry.storage,
+          storage: { ...(entry.storage || {}), provider: 'local' },
+          storageProvider: 'local',
           inCatalog: true,
           disk: disk ? { exists: true, ...disk } : { exists: false }
         };

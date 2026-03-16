@@ -79,7 +79,7 @@
         <% if (localStorageEnabled) { %>
           <label class="button button-secondary button-sm upload-label" for="local-upload-input" aria-label="<%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21h9"/><path d="M12 12v9"/><path d="M12 8V3"/><path d="M5 21h3"/></svg>
-            <%= locale === 'vi' ? 'Upload local' : 'Upload local' %>
+            <%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>
           </label>
           <input type="file" id="local-upload-input" style="display:none;" multiple />
         <% } %>
@@ -142,6 +142,8 @@
     data-msg-uploading="<%= locale === 'vi' ? 'Đang upload…' : 'Uploading…' %>"
     data-msg-upload-ok="<%= locale === 'vi' ? 'Upload thành công.' : 'Upload successful.' %>"
     data-msg-upload-err="<%= locale === 'vi' ? 'Upload thất bại.' : 'Upload failed.' %>"
+    data-msg-r2-put-failed="<%= locale === 'vi' ? 'Upload R2 thất bại (PUT bị chặn/CORS?). Kiểm tra CORS và bucket.' : 'R2 upload failed (PUT blocked/CORS?). Check CORS and bucket.' %>"
+    data-msg-r2-cors="<%= locale === 'vi' ? 'Kiểm tra CORS rules trên Cloudflare R2 và thông tin account/bucket.' : 'Verify Cloudflare R2 CORS rules and account/bucket info.' %>"
     data-msg-deleting="<%= locale === 'vi' ? 'Đang xóa…' : 'Deleting…' %>"
     data-msg-deleted="<%= locale === 'vi' ? 'Đã xóa.' : 'Deleted.' %>"
     data-msg-delete-confirm="<%= locale === 'vi' ? 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.' : 'Are you sure you want to delete this file? This cannot be undone.' %>"
