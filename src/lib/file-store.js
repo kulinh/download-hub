@@ -142,6 +142,37 @@ async function sha256File(absolutePath) {
   return hash.digest('hex');
 }
 
+export function sanitizeRelativePath(relativePath) {
+  const normalized = normalizeObjectKey(relativePath || '').trim();
+  if (!normalized) {
+    const err = new Error('relative_path_required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (normalized.includes('..')) {
+    const err = new Error('relative_path_invalid');
+    err.statusCode = 400;
+    throw err;
+  }
+  return normalized;
+}
+
+export async function ensureStoragePath(relativePath) {
+  const safeRelative = sanitizeRelativePath(relativePath);
+  const base = config.filesStoragePath.endsWith(path.sep)
+    ? config.filesStoragePath
+    : config.filesStoragePath + path.sep;
+  const absolutePath = path.resolve(config.filesStoragePath, safeRelative);
+
+  if (!absolutePath.startsWith(base)) {
+    const err = new Error('Invalid storage path');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  return { safeRelative, absolutePath };
+}
+
 async function statStorageFile(absolutePath) {
   const relativePath = path.relative(config.filesStoragePath, absolutePath).split(path.sep).join('/');
   const stat = await fs.stat(absolutePath);
@@ -193,11 +224,11 @@ function buildGeneratedEntry(scan) {
     checksumSha256: scan.checksumSha256,
     mimeType: scan.mimeType,
     storage: {
+      provider: 'local',
       relativePath: scan.relativePath,
-      objectKey: scan.relativePath,
-      r2Key: scan.relativePath,
       downloadName: fileName
     },
+    storageProvider: 'local',
     published: false,
     featured: false,
     demo: false,
@@ -205,6 +236,10 @@ function buildGeneratedEntry(scan) {
     tags: ['auto-generated'],
     updatedAt: scan.updatedAt
   };
+}
+
+export function buildCatalogEntryFromScan(scan) {
+  return buildGeneratedEntry(scan);
 }
 
 export async function syncFilesIndexFromDisk() {
@@ -265,6 +300,17 @@ export async function syncFilesIndexFromDisk() {
       slug: scan.slug
     }))
   };
+}
+
+export async function deleteStorageFile(relativePath) {
+  const { absolutePath } = await ensureStoragePath(relativePath);
+  await fs.rm(absolutePath, { force: true });
+  return true;
+}
+
+export async function statLocalFileByRelativePath(relativePath) {
+  const { absolutePath } = await ensureStoragePath(relativePath);
+  return statStorageFile(absolutePath);
 }
 
 export async function reloadFiles() {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= locale === 'vi' ? 'Quản lý R2 — Download Hub Admin' : 'R2 Management — Download Hub Admin' %></title>
+  <title><%= locale === 'vi' ? 'Quản lý Storage — Download Hub Admin' : 'Storage Management — Download Hub Admin' %></title>
   <link rel="stylesheet" href="/assets/site.css" />
 </head>
 <body>
@@ -35,12 +35,12 @@
         <p class="eyebrow">Download Hub / R2 Admin</p>
         <h1>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px;color:var(--accent)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
-          <%= locale === 'vi' ? 'Quản lý R2 File' : 'R2 File Management' %>
+          <%= locale === 'vi' ? 'Quản lý Storage' : 'Storage Management' %>
         </h1>
         <p class="hero-desc">
           <%= locale === 'vi'
-            ? 'Xem, upload, xóa, publish/unpublish file trên Cloudflare R2. File sẽ được phân phối qua presigned URL sau khi người dùng xác minh Turnstile.'
-            : 'View, upload, delete, and publish/unpublish files on Cloudflare R2. Files are delivered via presigned URLs after Turnstile verification.' %>
+            ? 'Xem, upload, xóa, publish/unpublish file trên Cloudflare R2 hoặc lưu trữ cục bộ. File sẽ được phân phối qua presigned URL sau khi người dùng xác minh Turnstile.'
+            : 'View, upload, delete, and publish/unpublish files on Cloudflare R2 hoặc lưu trữ cục bộ. Files are delivered via presigned URLs after Turnstile verification.' %>
         </p>
       </div>
     </header>

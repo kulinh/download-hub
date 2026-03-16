@@ -15,6 +15,20 @@ function toInt(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toBytes(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const num = Number(value);
+  if (Number.isFinite(num)) return num;
+  const match = String(value).trim().toLowerCase().match(/^(\d+)(kb|mb|gb)?$/);
+  if (!match) return fallback;
+  const size = Number.parseInt(match[1], 10);
+  const unit = match[2];
+  if (unit === 'kb') return size * 1024;
+  if (unit === 'mb') return size * 1024 * 1024;
+  if (unit === 'gb') return size * 1024 * 1024 * 1024;
+  return size;
+}
+
 function parseTrustProxy(value) {
   if (value === undefined || value === '') return 'loopback';
   const normalized = String(value).toLowerCase().trim();
@@ -87,15 +101,27 @@ export function buildConfig(env = process.env) {
       secretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
       bucket: env.R2_BUCKET || ''
     },
+    localUploadMaxBytes: toBytes(env.LOCAL_UPLOAD_MAX_BYTES, 512 * 1024 * 1024),
     useXAccelRedirect: toBool(env.USE_X_ACCEL_REDIRECT, false),
     xAccelInternalPrefix: env.X_ACCEL_INTERNAL_PREFIX || '/protected-downloads',
     rateLimitWindowSeconds: toInt(env.RATE_LIMIT_WINDOW_SECONDS, 300),
     rateLimitMaxAttempts: toInt(env.RATE_LIMIT_MAX_ATTEMPTS, 20),
     logRequests: toBool(env.LOG_REQUESTS, false),
-    adminBearerToken: env.ADMIN_BEARER_TOKEN || ''
+    adminBearerToken: env.ADMIN_BEARER_TOKEN || '',
+    localStorageEnabled: toBool(env.LOCAL_STORAGE_ENABLED, true)
   };
 
   cfg.captchaProvider = detectCaptchaProvider(cfg);
+
+  const hasR2Creds = cfg.r2.accountId && cfg.r2.accessKeyId && cfg.r2.secretAccessKey && cfg.r2.bucket;
+  // Harden enabled flag: only true if creds present
+  cfg.r2.enabled = Boolean(cfg.r2.enabled && hasR2Creds);
+
+  const hasLocalStorage = Boolean(cfg.filesStoragePath && cfg.localStorageEnabled !== false);
+  cfg.storageProviders = {
+    r2: cfg.r2.enabled,
+    local: hasLocalStorage
+  };
 
   if (cfg.nodeEnv === 'production') {
     if (!cfg.downloadTokenSecret || isPlaceholderSecret(cfg.downloadTokenSecret)) {
@@ -110,8 +136,12 @@ export function buildConfig(env = process.env) {
     if (!cfg.admin.username || !cfg.admin.password) {
       throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be set in production');
     }
-    if (!cfg.r2.enabled || !cfg.r2.accountId || !cfg.r2.bucket) {
-      throw new Error('Cloudflare R2 (R2_ENABLED, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) must be configured in production');
+    if (cfg.r2.enabled) {
+      if (!hasR2Creds) {
+        throw new Error('Cloudflare R2 (R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) must be fully configured when R2_ENABLED=true');
+      }
+    } else if (!hasLocalStorage) {
+      throw new Error('Either R2 must be configured or local storage path must be available in production');
     }
     cfg.adminBearerToken = '';
   }

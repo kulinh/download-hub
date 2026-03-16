@@ -6,7 +6,7 @@
  *   POST /admin/login         → authenticate
  *   POST /admin/logout        → destroy session
  *   GET  /admin               → redirect to /admin/r2
- *   GET  /admin/r2            → R2 management UI (session-protected)
+ *   GET  /admin/r2            → Storage management UI (R2 or local)
  *
  *   GET  /api/admin/r2/status      → R2 config health
  *   GET  /api/admin/r2/files       → list R2 objects merged with files.json catalog
@@ -16,6 +16,12 @@
  *   PATCH /api/admin/r2/files/:slug/metadata → update title/summary/version/platform
  *   POST /api/admin/r2/upload-url  → get presigned PUT URL
  *   POST /api/admin/r2/upload-confirm → confirm upload, add to catalog
+ *   POST /api/admin/local/upload     → upload file to local storage (bare-metal)
+ *   POST /api/admin/local/confirm    → confirm local upload and add to catalog
+ *   GET  /api/admin/local/files      → list local storage files merged with catalog
+ *   DELETE /api/admin/local/files/:slug → delete local file + catalog entry
+ *   PATCH /api/admin/local/files/:slug/publish  → toggle publish (local)
+ *   PATCH /api/admin/local/files/:slug/metadata → update metadata (local)
  *
  *   (Legacy compatibility)
  *   GET  /api/admin/files     → disk-based list (bearer token still works)
@@ -25,8 +31,9 @@
 
 import express from 'express';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { config } from '../lib/config.js';
-import { getStorageDownloadName, getStorageObjectKey, normalizeObjectKey } from '../lib/storage-metadata.js';
+import { getStorageDownloadName, getStorageObjectKey, getLocalRelativePath, normalizeObjectKey } from '../lib/storage-metadata.js';
 import { getHcaptchaConfig, verifyHcaptchaToken } from '../lib/captcha.js';
 import { enforceFormContentType, enforceJsonContentType } from '../middleware/security.js';
 import {
@@ -36,10 +43,16 @@ import {
   scanStorageFiles,
   syncFilesIndexFromDisk,
   readRawFilesIndex,
-  writeRawFilesIndex
+  writeRawFilesIndex,
+  buildCatalogEntryFromScan,
+  ensureStoragePath,
+  deleteStorageFile,
+  statLocalFileByRelativePath,
+  sanitizeRelativePath,
+  sha256File
 } from '../lib/file-store.js';
 import { isR2Configured, listR2Objects, deleteR2Object, getPresignedDownloadUrl } from '../lib/r2-client.js';
-import { getPresignedUploadUrl as getSdkPresignedUploadUrl } from '../lib/r2-storage.js';
+import { getPresignedUploadUrl as getSdkPresignedUploadUrl, isR2Enabled, shouldUseLocalStorage } from '../lib/r2-storage.js';
 import {
   clearAdminSession,
   issueAdminSession,
@@ -53,6 +66,14 @@ import { t } from '../lib/i18n.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
 
 const router = express.Router();
+
+const localUploadParser = express.raw({
+  limit: config.localUploadMaxBytes,
+  type: (req) => {
+    const ct = (req.headers['content-type'] || '').toLowerCase();
+    return ct.startsWith('application/octet-stream') || ct.startsWith('application/x-binary') || ct === '';
+  }
+});
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -427,12 +448,13 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
         checksumSha256: '',
         mimeType: contentType || 'application/octet-stream',
         storage: {
+          provider: 'r2',
           objectKey: r2Key,
           r2Key,
-          relativePath: r2Key,
           downloadName: filename || path.basename(r2Key)
         },
         r2: { key: r2Key, downloadName: filename || path.basename(r2Key) },
+        storageProvider: 'r2',
         published: false,
         featured: false,
         demo: false,
@@ -444,9 +466,9 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
       existing.mimeType = contentType || existing.mimeType;
       existing.storage = {
         ...(existing.storage || {}),
+        provider: 'r2',
         objectKey: r2Key,
         r2Key,
-        relativePath: existing.storage?.relativePath || r2Key,
         downloadName: filename || existing.storage?.downloadName || path.basename(r2Key)
       };
       existing.r2 = {
@@ -454,11 +476,213 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
         key: r2Key,
         downloadName: filename || existing.r2?.downloadName || path.basename(r2Key)
       };
+      existing.storageProvider = 'r2';
       existing.updatedAt = new Date().toISOString();
     }
 
     await writeRawFilesIndex(catalog);
     res.json({ ok: true, r2Key });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
+// ── Local storage APIs ───────────────────────────────────────────────────────
+
+router.get('/api/admin/local/files', requireAdminSession, async (req, res, next) => {
+  try {
+    const [catalogRaw, scanned] = await Promise.all([
+      getAllFiles(),
+      scanStorageFiles()
+    ]);
+
+    const scannedByPath = new Map(scanned.map((item) => [item.relativePath, item]));
+    const files = catalogRaw
+      .filter((entry) => !isR2Enabled() || shouldUseLocalStorage() || !getStorageObjectKey(entry))
+      .map((entry) => {
+        const disk = entry.storage?.relativePath ? scannedByPath.get(entry.storage.relativePath) : null;
+        return {
+          slug: entry.slug,
+          title: entry.title,
+          summary: entry.summary,
+          version: entry.version,
+          platform: entry.platform,
+          published: Boolean(entry.published),
+          featured: Boolean(entry.featured),
+          updatedAt: entry.updatedAt,
+          sizeBytes: entry.sizeBytes,
+          checksumSha256: entry.checksumSha256,
+          mimeType: entry.mimeType,
+          storage: entry.storage,
+          inCatalog: true,
+          disk: disk ? { exists: true, ...disk } : { exists: false }
+        };
+      });
+
+    const extraDiskFiles = scanned.filter((item) => !catalogRaw.some((e) => e?.storage?.relativePath === item.relativePath));
+
+    res.json({ ok: true, files, extraDiskFiles, storagePath: config.filesStoragePath, filesIndexPath: config.filesIndexPath });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/api/admin/local/upload', requireAdminSession, localUploadParser, async (req, res, next) => {
+  try {
+    if (!config.localStorageEnabled) {
+      return res.status(503).json({ ok: false, error: 'local_storage_disabled' });
+    }
+
+    const relativePathRaw = req.headers['x-relative-path'] || req.query.path || req.query.relativePath;
+    const contentType = req.headers['content-type'] || 'application/octet-stream';
+    const filename = req.headers['x-filename'] || path.basename(String(relativePathRaw || 'upload.bin'));
+    const { safeRelative, absolutePath } = await ensureStoragePath(relativePathRaw || filename);
+
+    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+
+    const contentLength = Number.parseInt(req.headers['content-length'] || '0', 10) || 0;
+    if (contentLength > config.localUploadMaxBytes) {
+      return res.status(413).json({ ok: false, error: 'payload_too_large' });
+    }
+
+    await fs.writeFile(absolutePath, req.body);
+    const stat = await fs.stat(absolutePath);
+    const checksumSha256 = await sha256File(absolutePath);
+
+    res.json({
+      ok: true,
+      relativePath: safeRelative,
+      absolutePath,
+      sizeBytes: stat.size,
+      checksumSha256,
+      contentType
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/api/admin/local/confirm', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
+  try {
+    const { relativePath, sizeBytes, checksumSha256, mimeType, filename } = req.body || {};
+    if (!relativePath) return res.status(400).json({ ok: false, error: 'relative_path_required' });
+
+    const safeRelative = sanitizeRelativePath(relativePath);
+    const stat = await statLocalFileByRelativePath(safeRelative);
+
+    if (sizeBytes && Number(sizeBytes) !== stat.sizeBytes) {
+      return res.status(400).json({ ok: false, error: 'size_mismatch' });
+    }
+    if (checksumSha256 && checksumSha256 !== stat.checksumSha256) {
+      return res.status(400).json({ ok: false, error: 'checksum_mismatch' });
+    }
+
+    const catalog = await getAllFiles();
+    const existing = catalog.find((e) => getLocalRelativePath(e) === safeRelative);
+    if (existing) {
+      existing.sizeBytes = stat.sizeBytes;
+      existing.checksumSha256 = stat.checksumSha256;
+      existing.mimeType = mimeType || stat.mimeType || existing.mimeType;
+      existing.storage = {
+        ...(existing.storage || {}),
+        relativePath: safeRelative,
+        objectKey: undefined,
+        r2Key: undefined,
+        downloadName: filename || existing.storage?.downloadName || path.basename(safeRelative)
+      };
+      existing.storageProvider = 'local';
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      const slug = slugify(path.basename(safeRelative));
+      catalog.push({
+        id: slug + '-' + Date.now(),
+        slug,
+        title: { vi: titleFromKey(safeRelative), en: titleFromKey(safeRelative) },
+        summary: { vi: '', en: '' },
+        description: { vi: '', en: '' },
+        version: '1.0.0',
+        platform: inferPlatform(safeRelative),
+        language: ['vi', 'en'],
+        sizeBytes: stat.sizeBytes,
+        checksumSha256: stat.checksumSha256,
+        mimeType: mimeType || stat.mimeType || 'application/octet-stream',
+        storage: {
+          relativePath: safeRelative,
+          downloadName: filename || path.basename(safeRelative)
+        },
+        published: false,
+        featured: false,
+        demo: false,
+        tags: [],
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    await writeRawFilesIndex(catalog);
+    res.json({ ok: true, relativePath: safeRelative });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/api/admin/local/files/:slug', requireAdminSession, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const catalog = await getAllFiles();
+    const idx = catalog.findIndex((e) => e.slug === slug || getLocalRelativePath(e) === slug);
+    if (idx < 0) return res.status(404).json({ ok: false, error: 'not_found' });
+
+    const entry = catalog[idx];
+    const relPath = getLocalRelativePath(entry);
+    if (relPath) {
+      await deleteStorageFile(relPath);
+    }
+
+    catalog.splice(idx, 1);
+    await writeRawFilesIndex(catalog);
+
+    res.json({ ok: true, deleted: slug });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/api/admin/local/files/:slug/publish', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const { published } = req.body || {};
+    const catalog = await getAllFiles();
+    const entry = catalog.find((e) => e.slug === slug || getLocalRelativePath(e) === slug);
+    if (!entry) return res.status(404).json({ ok: false, error: 'not_found' });
+
+    entry.published = Boolean(published);
+    entry.updatedAt = new Date().toISOString();
+    await writeRawFilesIndex(catalog);
+    await reloadFiles();
+    res.json({ ok: true, slug: entry.slug, published: entry.published });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/api/admin/local/files/:slug/metadata', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
+  try {
+    const { slug } = req.params;
+    const { title, summary, version, platform } = req.body || {};
+    const catalog = await getAllFiles();
+    const entry = catalog.find((e) => e.slug === slug || getLocalRelativePath(e) === slug);
+    if (!entry) return res.status(404).json({ ok: false, error: 'not_found' });
+
+    if (title && typeof title === 'object') entry.title = { ...entry.title, ...title };
+    if (summary && typeof summary === 'object') entry.summary = { ...entry.summary, ...summary };
+    if (version) entry.version = String(version).slice(0, 50);
+    if (platform) entry.platform = String(platform).slice(0, 50);
+    entry.updatedAt = new Date().toISOString();
+
+    await writeRawFilesIndex(catalog);
+    await reloadFiles();
+    res.json({ ok: true, slug: entry.slug });
   } catch (err) {
     next(err);
   }

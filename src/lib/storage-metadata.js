@@ -8,14 +8,27 @@ export function normalizeObjectKey(value) {
     .replace(/\/+/g, '/');
 }
 
+export function getStorageProvider(fileItem) {
+  const provider = fileItem?.storage?.provider || fileItem?.storageProvider;
+  if (provider === 'r2' || provider === 'local') return provider;
+  if (fileItem?.storage?.objectKey || fileItem?.storage?.r2Key || fileItem?.r2?.key) return 'r2';
+  if (fileItem?.storage?.relativePath) return 'local';
+  return 'local';
+}
+
 export function getStorageObjectKey(fileItem) {
+  const provider = getStorageProvider(fileItem);
+  if (provider !== 'r2') return '';
   return normalizeObjectKey(
     fileItem?.storage?.objectKey
     || fileItem?.storage?.r2Key
     || fileItem?.r2?.key
-    || fileItem?.storage?.relativePath
     || ''
   );
+}
+
+export function getLocalRelativePath(fileItem) {
+  return normalizeObjectKey(fileItem?.storage?.relativePath || '');
 }
 
 export function getStorageDownloadName(fileItem) {
@@ -28,26 +41,52 @@ export function getStorageDownloadName(fileItem) {
 export function normalizeFileEntry(fileItem) {
   if (!fileItem || typeof fileItem !== 'object') return fileItem;
 
-  const objectKey = getStorageObjectKey(fileItem);
-  const downloadName = getStorageDownloadName(fileItem);
-  const relativePath = fileItem?.storage?.relativePath || objectKey || undefined;
+  const provider = getStorageProvider(fileItem) === 'r2' ? 'r2' : 'local';
+  const objectKey = provider === 'r2'
+    ? normalizeObjectKey(fileItem?.storage?.objectKey || fileItem?.storage?.r2Key || fileItem?.r2?.key || '')
+    : '';
+  const relativePath = provider === 'local' ? getLocalRelativePath(fileItem) : '';
+  const downloadName = getStorageDownloadName({ ...fileItem, storage: { ...(fileItem.storage || {}), objectKey, r2Key: objectKey } });
 
-  return {
-    ...fileItem,
-    storage: {
-      ...(fileItem.storage || {}),
-      ...(relativePath ? { relativePath } : {}),
-      ...(objectKey ? { objectKey, r2Key: objectKey } : {}),
-      ...(downloadName ? { downloadName } : {})
-    },
-    ...(objectKey ? {
-      r2: {
-        ...(fileItem.r2 || {}),
-        key: objectKey,
-        downloadName
-      }
-    } : {})
+  let storage = {
+    ...(fileItem.storage || {}),
+    provider,
+    ...(downloadName ? { downloadName } : {})
   };
+
+  if (provider === 'r2' && objectKey) {
+    storage = {
+      ...storage,
+      objectKey,
+      r2Key: objectKey,
+      ...(storage.relativePath ? { relativePath: storage.relativePath } : {})
+    };
+  } else {
+    storage = {
+      ...storage,
+      ...(relativePath ? { relativePath } : {})
+    };
+    delete storage.objectKey;
+    delete storage.r2Key;
+  }
+
+  const normalized = {
+    ...fileItem,
+    storage,
+    storageProvider: provider
+  };
+
+  if (provider === 'r2' && objectKey) {
+    normalized.r2 = {
+      ...(fileItem.r2 || {}),
+      key: objectKey,
+      downloadName
+    };
+  } else if (normalized.r2 && !objectKey) {
+    delete normalized.r2;
+  }
+
+  return normalized;
 }
 
 export function normalizeFileEntries(entries = []) {

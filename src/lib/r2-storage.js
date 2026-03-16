@@ -1,7 +1,7 @@
 import { GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from './config.js';
-import { getStorageDownloadName, getStorageObjectKey } from './storage-metadata.js';
+import { getStorageDownloadName, getStorageObjectKey, getStorageProvider } from './storage-metadata.js';
 
 let _r2Client = null;
 
@@ -26,6 +26,13 @@ function getR2Client() {
 
 export async function streamFromR2(fileItem, res) {
   const client = getR2Client();
+  const provider = getStorageProvider(fileItem);
+  if (provider !== 'r2') {
+    const err = new Error('storage_provider_not_r2');
+    err.statusCode = 400;
+    throw err;
+  }
+
   const key = getStorageObjectKey(fileItem);
 
   if (!key) {
@@ -127,6 +134,17 @@ export async function listR2Objects(prefix = '', maxKeys = 1000) {
 
 export function isR2Enabled() {
   return Boolean(config.r2?.enabled && config.r2?.accountId && config.r2?.bucket);
+}
+
+export function shouldUseLocalStorage() {
+  return !isR2Enabled();
+}
+
+export function resolveStorageProvider(fileItem) {
+  const provider = fileItem?.storage?.provider || fileItem?.storageProvider;
+  if (provider === 'r2' || provider === 'local') return provider;
+  if (fileItem?.storage?.relativePath) return 'local';
+  return isR2Enabled() && (fileItem?.storage?.objectKey || fileItem?.storage?.r2Key || fileItem?.r2?.key) ? 'r2' : 'local';
 }
 
 function sanitizeFilename(name) {

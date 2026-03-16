@@ -47,16 +47,17 @@ export const messages = {
     adminLoginPassword: 'Mật khẩu admin',
     adminLoginSubmit: 'Đăng nhập',
     adminLogout: 'Đăng xuất',
-    r2StorageLabel: 'Lưu trữ R2',
-    r2InventoryTitle: 'Kho R2 — File Catalog',
-    r2NotConfigured: 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET trong .env.',
+    r2StorageLabel: 'Lưu trữ',
+    r2InventoryTitle: 'Kho lưu trữ — File Catalog',
+    r2NotConfigured: 'Storage chưa được cấu hình. Bật R2 hoặc cấu hình lưu đĩa cục bộ (FILES_STORAGE_PATH).',
     publishLabel: 'Publish',
     unpublishLabel: 'Unpublish',
     deleteConfirm: 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.',
     editMetadata: 'Chỉnh sửa metadata',
-    uploadToR2: 'Upload lên R2',
+    uploadToR2: 'Upload lên R2 hoặc lưu cục bộ',
     syncIndex: 'Đồng bộ Index',
-    storageCloudflareR2: 'Cloudflare R2'
+    storageCloudflareR2: 'Cloudflare R2',
+    storageLocal: 'Lưu trữ cục bộ'
   },
   en: {
     siteTitle: 'Download Hub Template',
@@ -106,16 +107,17 @@ export const messages = {
     adminLoginPassword: 'Admin password',
     adminLoginSubmit: 'Sign in',
     adminLogout: 'Sign out',
-    r2StorageLabel: 'R2 Storage',
-    r2InventoryTitle: 'R2 Storage — File Catalog',
-    r2NotConfigured: 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET in .env.',
+    r2StorageLabel: 'Storage',
+    r2InventoryTitle: 'Storage — File Catalog',
+    r2NotConfigured: 'Storage is not configured. Enable R2 or configure local disk (FILES_STORAGE_PATH).',
     publishLabel: 'Publish',
     unpublishLabel: 'Unpublish',
     deleteConfirm: 'Are you sure you want to delete this file? This cannot be undone.',
     editMetadata: 'Edit metadata',
-    uploadToR2: 'Upload to R2',
+    uploadToR2: 'Upload to R2 or local storage',
     syncIndex: 'Sync Index',
-    storageCloudflareR2: 'Cloudflare R2'
+    storageCloudflareR2: 'Cloudflare R2',
+    storageLocal: 'Local storage'
   }
 };
 

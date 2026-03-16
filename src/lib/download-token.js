@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
 import { isR2Enabled, streamFromR2 } from './r2-storage.js';
-import { getStorageDownloadName, getStorageObjectKey } from './storage-metadata.js';
+import { getLocalRelativePath, getStorageDownloadName, getStorageObjectKey } from './storage-metadata.js';
 import { createHmacToken, verifyHmacToken } from './utils.js';
 
 function hmacDigest(value) {
@@ -38,7 +38,10 @@ export async function streamDownload(fileItem, req, res, absolutePath) {
     return streamFromR2(fileItem, res);
   }
 
-  const stat = await fs.stat(absolutePath);
+  // Local path is optional if caller passes absolutePath
+  const relPath = getLocalRelativePath(fileItem);
+  const resolved = absolutePath || path.resolve(config.filesStoragePath, relPath);
+  const stat = await fs.stat(resolved);
   res.setHeader('Content-Type', fileItem.mimeType || 'application/octet-stream');
   res.setHeader('Content-Length', stat.size);
   res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(getStorageDownloadName(fileItem))}"`);
@@ -49,13 +52,13 @@ export async function streamDownload(fileItem, req, res, absolutePath) {
   if (config.useXAccelRedirect) {
     const internalPath = path.posix.join(
       config.xAccelInternalPrefix,
-      fileItem.storage.relativePath.split(path.sep).join('/')
+      relPath.split(path.sep).join('/')
     );
     res.setHeader('X-Accel-Redirect', internalPath);
     return res.status(200).end();
   }
 
-  return res.sendFile(absolutePath);
+  return res.sendFile(resolved);
 }
 
 function sanitizeFilename(name) {

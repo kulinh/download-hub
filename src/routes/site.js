@@ -8,7 +8,7 @@ import {
 import { config } from '../lib/config.js';
 import { issueDownloadToken, streamDownload, verifyDownloadToken } from '../lib/download-token.js';
 import { t } from '../lib/i18n.js';
-import { getStorageObjectKey } from '../lib/storage-metadata.js';
+import { getStorageObjectKey, getStorageProvider } from '../lib/storage-metadata.js';
 import { buildBaseUrl, formatBytes, getServerName, pickLocale, publicError } from '../lib/utils.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
 import { enforceFormContentType } from '../middleware/security.js';
@@ -124,11 +124,18 @@ router.get('/files/:slug', async (req, res, next) => {
       );
     }
 
-    if (isR2Enabled() && getStorageObjectKey(fileItem)) {
-      return await streamDownload(fileItem, req, res, null);
+    const provider = getStorageProvider(fileItem);
+
+    if (provider === 'r2' && (!isR2Enabled() || !getStorageObjectKey(fileItem))) {
+      throw publicError(
+        'Storage R2 chưa sẵn sàng.',
+        'R2 storage not available.',
+        locale,
+        503
+      );
     }
 
-    const absolutePath = await resolveStoragePath(fileItem);
+    const absolutePath = provider === 'local' ? await resolveStoragePath(fileItem) : null;
     await streamDownload(fileItem, req, res, absolutePath);
   } catch (error) {
     next(error);
