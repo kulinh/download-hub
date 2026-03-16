@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
-import { normalizeFileEntries } from './storage-metadata.js';
+import { normalizeFileEntries, normalizeObjectKey } from './storage-metadata.js';
 
 let cachedFiles = null;
 let cachedFilesIndexPath = null;
@@ -135,7 +135,7 @@ function slugify(value) {
     .replace(/^-+|-+$/g, '') || 'file';
 }
 
-async function sha256File(absolutePath) {
+export async function sha256File(absolutePath) {
   const hash = crypto.createHash('sha256');
   const buffer = await fs.readFile(absolutePath);
   hash.update(buffer);

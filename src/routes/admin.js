@@ -553,7 +553,6 @@ router.post('/api/admin/local/upload', requireAdminSession, localUploadParser, a
     res.json({
       ok: true,
       relativePath: safeRelative,
-      absolutePath,
       sizeBytes: stat.size,
       checksumSha256,
       contentType

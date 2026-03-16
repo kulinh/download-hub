@@ -58,9 +58,9 @@ export function normalizeFileEntry(fileItem) {
     storage = {
       ...storage,
       objectKey,
-      r2Key: objectKey,
-      ...(storage.relativePath ? { relativePath: storage.relativePath } : {})
+      r2Key: objectKey
     };
+    delete storage.relativePath;
   } else {
     storage = {
       ...storage,
@@ -84,6 +84,12 @@ export function normalizeFileEntry(fileItem) {
     };
   } else if (normalized.r2 && !objectKey) {
     delete normalized.r2;
+  }
+
+  if (provider === 'local') {
+    normalized.storageProvider = 'local';
+  } else {
+    normalized.storageProvider = 'r2';
   }
 
   return normalized;
