@@ -278,7 +278,7 @@
     setStatus('pending', msgs.syncing);
     try {
       await apiFetch('/api/admin/r2/sync', { method: 'POST' });
-      await loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) });
+      await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
       setStatus('success', msgs.synced);
     } catch (err) {
       setStatus('error', err.message);
@@ -544,7 +544,7 @@
   });
 
   // --- Toolbar button bindings ---
-  if (btnRefresh) btnRefresh.addEventListener('click', function () { loadInventory({ r2Configured: true, localAvailable: Boolean(localUploadInput) }); });
+  if (btnRefresh) btnRefresh.addEventListener('click', function () { loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag }); });
   if (btnSyncIndex) btnSyncIndex.addEventListener('click', syncIndex);
 
   if (uploadInput) {
