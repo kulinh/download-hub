@@ -2,7 +2,7 @@
 
 > **Deploy-ready demo scaffold** cho hệ thống download hub chạy bằng **Docker**, quản trị qua **Portainer**, dùng **CloudPanel chỉ làm reverse proxy**, lưu file trên **Cloudflare R2**, bảo vệ public download bằng **Cloudflare Turnstile**, và bảo vệ admin bằng **username + password + hCaptcha + session cookie**.
 
-## Canonical architecture
+## Canonical Architecture (R2 Primary)
 
 ```text
 Internet
@@ -166,7 +166,7 @@ npm run check
 npm run dev
 ```
 
-### Compatibility appendix
+### Compatibility Appendix (Local Disk Mode)
 The following are **legacy/compatibility paths**, not the primary production story:
 - PM2-managed app runtime
 - local disk as primary storage

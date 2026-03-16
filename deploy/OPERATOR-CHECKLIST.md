@@ -1,14 +1,14 @@
 # OPERATOR CHECKLIST — download-hub
 
-## Canonical mode
-Use this checklist for the **new primary deployment model**:
+## Canonical Mode (R2 Storage)
+Use this checklist for the **primary deployment model**:
 - Docker / Docker Compose / Portainer
 - CloudPanel only as reverse proxy
 - Cloudflare R2 as primary storage
 - Turnstile for public flow
 - username + password + hCaptcha + session cookie for admin
 
-## 1) DNS + reverse proxy
+## 1) DNS + Reverse Proxy
 - `download.888vn.net` points to the correct VPS IP
 - CloudPanel vhost exists for `download.888vn.net`
 - CloudPanel proxies to `127.0.0.1:3000`
@@ -20,7 +20,7 @@ Use this checklist for the **new primary deployment model**:
 - app binds to `127.0.0.1:3000`
 - healthcheck passes
 
-## 3) Production env
+## 3) Production Environment Variables
 Must be set:
 - `NODE_ENV=production`
 - `APP_BASE_URL=https://download.888vn.net`
@@ -33,14 +33,14 @@ Must be set:
 - `HCAPTCHA_*`
 - `R2_*`
 
-## 4) R2
+## 4) Cloudflare R2 Configuration
 - bucket exists
 - credentials valid
 - bucket name correct
 - upload flow works from `/admin/r2`
 - file list returns expected objects
 
-## 5) Public flow
+## 5) Public Download Flow
 - homepage loads
 - detail page loads
 - Turnstile renders
@@ -48,7 +48,7 @@ Must be set:
 - published file downloads successfully
 - expired token returns 403
 
-## 6) Admin flow
+## 6) Admin Operations Flow
 - `/admin/login` loads
 - hCaptcha renders
 - username/password login succeeds
@@ -58,15 +58,14 @@ Must be set:
 - publish/unpublish works
 - logout clears session
 
-## 7) Logs / health
+## 7) Logs & Health Check
 - `/health` returns 200
 - container logs are clean
 - reverse proxy logs show healthy upstream behavior
 
-## 8) Compatibility appendix
-Only if intentionally needed:
-- PM2 runtime
-- local disk storage
-- X-Accel-Redirect as primary delivery path
-- bearer-token admin operations
-These are compatibility/migration paths, not the canonical production mode.
+## 8) Compatibility Mode (Local Disk Storage)
+Only if intentionally needed for local legacy deployment:
+- PM2 runtime instead of Docker
+- Local disk storage (requires `R2_ENABLED=false`)
+- X-Accel-Redirect as primary delivery path (requires `USE_X_ACCEL_REDIRECT=true`)
+- Requires directory mounts for `/storage/files`

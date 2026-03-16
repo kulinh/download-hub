@@ -143,9 +143,9 @@ At minimum back up:
 4. verify `/health`
 5. test admin login + public download
 
-## 9. Compatibility appendix
+## 9. Compatibility Appendix (Local Disk Mode)
 These are **legacy compatibility paths only** and not the primary deployment recommendation:
-- PM2-managed runtime
-- local-disk-first storage
-- X-Accel-Redirect-first delivery mode
-- bearer-token-only admin workflow
+- PM2-managed runtime instead of Docker
+- Local disk storage instead of Cloudflare R2
+- X-Accel-Redirect delivery mode via Nginx
+- Legacy bearer-token admin workflow

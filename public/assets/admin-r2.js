@@ -25,6 +25,7 @@
     uploading: script.dataset.msgUploading,
     uploadOk: script.dataset.msgUploadOk,
     uploadErr: script.dataset.msgUploadErr,
+    uploadBlocked: script.dataset.msgUploadBlocked || 'Upload blocked by config/CORS',
     deleting: script.dataset.msgDeleting,
     deleted: script.dataset.msgDeleted,
     deleteConfirm: script.dataset.msgDeleteConfirm,
@@ -78,6 +79,25 @@
   const editModal = document.getElementById('edit-modal');
   const editModalBody = document.getElementById('edit-modal-body');
   const editModalClose = document.getElementById('edit-modal-close');
+
+  // Accessibility helpers
+  function focusTrap(modalEl) {
+    if (!modalEl) return;
+    const focusable = modalEl.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    modalEl.addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab') return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+    // Move focus to modal when opened
+    first.focus();
+  }
 
   // --- Utility ---
   function esc(value) {
@@ -207,6 +227,7 @@
       setStatus('success', msgs.loaded);
     } catch (err) {
       setStatus('error', err.message);
+      window.__r2Diag?.set?.(err);
     }
   }
 
@@ -224,9 +245,6 @@
       const publishedCell = isPublished
         ? '<span class="status-pill status-pill--match">✓</span>'
         : '<span class="status-pill status-pill--missing">—</span>';
-      const pubBtn = isPublished
-        ? '<button class="button button-ghost button-xs btn-unpublish" data-slug="' + esc(file.slug || file.r2Key || file.storage?.relativePath) + '">' + esc(labels.unpublish) + '</button>'
-        : '<button class="button button-ghost button-xs btn-publish" data-slug="' + esc(file.slug || file.r2Key || file.storage?.relativePath) + '">' + esc(labels.publish) + '</button>';
       const slugOrKey = file.slug || file.r2Key || file.storage?.relativePath;
       const storageProvider = file.storageProvider || file.storage?.provider || (r2Configured ? 'r2' : 'local');
       const badge = storageProvider === 'local'
@@ -236,15 +254,19 @@
         ? (file.storage?.relativePath || file.slug || '—')
         : (file.r2Key || file.storage?.objectKey || '—');
 
+      const publishBtn = isPublished
+        ? '<button type="button" class="button button-ghost button-xs btn-unpublish" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.unpublish) + '</button>'
+        : '<button type="button" class="button button-ghost button-xs btn-publish" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.publish) + '</button>';
+
       return '<tr>' +
         '<td>' + badge + ' <code class="r2-key-cell" title="' + esc(keyCellValue) + '">' + esc(keyCellValue) + '</code></td>' +
         '<td class="num-cell">' + esc(formatBytes(file.sizeBytes)) + '</td>' +
         '<td class="date-cell">' + esc(formatDate(file.updatedAt || file.lastModified)) + '</td>' +
         '<td class="center-cell">' + publishedCell + '</td>' +
         '<td class="actions-cell">' +
-          '<button class="button button-secondary button-xs btn-edit" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.edit) + '</button> ' +
-          pubBtn.replace('button-ghost', 'button-ghost" data-provider="' + esc(storageProvider)) + ' ' +
-          '<button class="button button-danger button-xs btn-delete" data-slug="' + esc(slugOrKey) + '" data-key="' + esc(file.r2Key || file.storage?.relativePath || '') + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.delete) + '</button>' +
+          '<button type="button" class="button button-secondary button-xs btn-edit" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.edit) + '</button> ' +
+          publishBtn + ' ' +
+          '<button type="button" class="button button-danger button-xs btn-delete" data-slug="' + esc(slugOrKey) + '" data-key="' + esc(file.r2Key || file.storage?.relativePath || '') + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.delete) + '</button>' +
         '</td>' +
       '</tr>';
     });
@@ -282,6 +304,7 @@
       setStatus('success', msgs.synced);
     } catch (err) {
       setStatus('error', err.message);
+      window.__r2Diag?.set?.(err);
     }
   }
 
@@ -296,6 +319,7 @@
       setStatus('success', msgs.deleted);
     } catch (err) {
       setStatus('error', err.message);
+      window.__r2Diag?.set?.(err);
     }
   }
 
@@ -357,6 +381,7 @@
       '</form>';
 
     editModal.hidden = false;
+    focusTrap(editModal);
     document.getElementById('edit-cancel-btn').addEventListener('click', closeEditModal);
 
     document.getElementById('edit-file-form').addEventListener('submit', async function (ev) {
@@ -382,6 +407,7 @@
       } catch (err) {
         statusEl.className = 'result result-error';
         statusEl.textContent = err.message;
+        window.__r2Diag?.set?.(err);
       }
     });
   }
@@ -418,14 +444,15 @@
     }
 
     uploadModal.hidden = false;
+    focusTrap(uploadModal);
 
     document.getElementById('upload-cancel-btn').addEventListener('click', closeUploadModal);
 
-    document.getElementById('start-upload-btn').addEventListener('click', async function () {
+    const startUploadHandler = async function () {
       const startBtn = document.getElementById('start-upload-btn');
       const resultsEl = document.getElementById('upload-results');
-      startBtn.disabled = true;
-      resultsEl.innerHTML = '';
+      if (startBtn) startBtn.disabled = true;
+      if (resultsEl) resultsEl.innerHTML = '';
 
       for (let i = 0; i < fileList.length; i++) {
         const f = fileList[i];
@@ -467,10 +494,15 @@
             });
           } else {
             // 1. Get presigned upload URL
-            const presignData = await apiFetch('/api/admin/r2/upload-url', {
-              method: 'POST',
-              body: JSON.stringify({ filename: customPath || f.name, contentType: f.type || 'application/octet-stream' })
-            });
+            let presignData;
+            try {
+              presignData = await apiFetch('/api/admin/r2/upload-url', {
+                method: 'POST',
+                body: JSON.stringify({ filename: customPath || f.name, contentType: f.type || 'application/octet-stream' })
+              });
+            } catch (presignErr) {
+              throw new Error(msgs.uploadBlocked + ' [presign failed: ' + (presignErr?.message || 'unknown') + ']');
+            }
 
             // 2. PUT to presigned URL
             let putResp;
@@ -514,7 +546,15 @@
       }
 
       await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
-    });
+    };
+
+    const startBtnEl = document.getElementById('start-upload-btn');
+    if (startBtnEl) startBtnEl.addEventListener('click', startUploadHandler);
+
+    // For local uploads, auto-start upload after file selection to avoid dead-click UX.
+    if (useLocal && startBtnEl) {
+      startUploadHandler();
+    }
   }
 
   function closeUploadModal() {
@@ -569,6 +609,13 @@
   if (uploadInput && uploadInput.labels && uploadInput.labels[0]) {
     uploadInput.labels[0].querySelector('.upload-label-text');
   }
+
+  // Expose small diagnostics helper for operators to inspect last error
+  window.__r2Diag = {
+    lastError: null,
+    set(err) { this.lastError = err; console.error('[R2]', err); },
+    get() { return this.lastError; }
+  };
 
   // --- Init ---
   checkR2Config();
