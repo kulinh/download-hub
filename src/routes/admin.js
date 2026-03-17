@@ -75,6 +75,14 @@ const localUploadParser = express.raw({
   }
 });
 
+const r2UploadParser = express.raw({
+  limit: config.localUploadMaxBytes,
+  type: (req) => {
+    const ct = (req.headers['content-type'] || '').toLowerCase();
+    return ct.startsWith('application/octet-stream') || ct.startsWith('application/x-binary') || ct === '';
+  }
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function pageData(req) {
@@ -425,6 +433,30 @@ router.post('/api/admin/r2/upload-url', requireAdminSession, enforceJsonContentT
     const r2Key = normalizeObjectKey(String(filename).replace(/\.\./g, '').replace(/^\/+/, ''));
     const uploadUrl = await getSdkPresignedUploadUrl(r2Key, contentType || 'application/octet-stream', 900);
     res.json({ ok: true, uploadUrl, r2Key });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Direct admin upload proxy (bypass browser→R2 CORS) ────────────────────────
+
+router.post('/api/admin/r2/upload-direct', requireAdminSession, r2UploadParser, async (req, res, next) => {
+  try {
+    if (!isR2Configured()) {
+      return res.status(503).json({ ok: false, error: 'r2_not_configured' });
+    }
+    const rawKey = req.headers['x-r2-key'] || req.query.key || '';
+    const r2Key = normalizeObjectKey(String(rawKey || '').replace(/\.\./g, '').replace(/^\/+/, ''));
+    if (!r2Key) return res.status(400).json({ ok: false, error: 'r2key_required' });
+
+    const contentType = req.headers['content-type'] || 'application/octet-stream';
+    const contentLength = Number.parseInt(req.headers['content-length'] || '0', 10) || 0;
+    if (contentLength > config.localUploadMaxBytes) {
+      return res.status(413).json({ ok: false, error: 'payload_too_large' });
+    }
+
+    await uploadBufferToR2(r2Key, req.body, contentType);
+    res.json({ ok: true, r2Key, sizeBytes: req.body?.length || 0, contentType });
   } catch (err) {
     next(err);
   }

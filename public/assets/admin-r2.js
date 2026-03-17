@@ -437,6 +437,13 @@
         '<button type="button" class="button" id="start-upload-btn">' + esc(labels.uploadBtn) + '</button>' +
         '<button type="button" class="button button-ghost" id="upload-cancel-btn">' + esc(labels.cancel) + '</button>' +
       '</div>' +
+      '<p class="note" style="margin-top:8px;font-size:13px;color:var(--color-muted,#6b7280);">' + (useLocal
+        ? (locale === 'vi'
+          ? 'Upload nội bộ (bỏ qua CORS). Dùng cho server có ổ đĩa.'
+          : 'Direct server upload (bypasses CORS). Use when local storage is available.')
+        : (locale === 'vi'
+          ? 'Ưu tiên proxy upload qua server để tránh lỗi CORS. Nếu vẫn fail sẽ thử presigned PUT như cũ. (Admin only)'
+          : 'Uses server-proxied upload first to avoid CORS. Falls back to presigned PUT if needed. (Admin only)')) + '</p>' +
       '<div id="upload-results" class="upload-results"></div>';
 
     if (uploadModalTitle) {
@@ -493,51 +500,81 @@
               })
             });
           } else {
-            // 1. Get presigned upload URL
-            let presignData;
+            // 1. Try direct server-proxied upload to bypass browser→R2 CORS
+            let directUploadOk = false;
             try {
-              presignData = await apiFetch('/api/admin/r2/upload-url', {
+              const directResp = await fetch('/api/admin/r2/upload-direct?key=' + encodeURIComponent(customPath || f.name), {
                 method: 'POST',
-                body: JSON.stringify({ filename: customPath || f.name, contentType: f.type || 'application/octet-stream' })
-              });
-            } catch (presignErr) {
-              throw new Error(msgs.uploadBlocked + ' [presign failed: ' + (presignErr?.message || 'unknown') + ']');
-            }
-
-            // 2. PUT to presigned URL
-            let putResp;
-            try {
-              putResp = await fetch(presignData.uploadUrl, {
-                method: 'PUT',
-                headers: { 'Content-Type': f.type || 'application/octet-stream' },
+                headers: {
+                  'Content-Type': f.type || 'application/octet-stream',
+                  'Content-Length': String(f.size || 0),
+                  'X-CSRF-Token': csrf,
+                  'X-R2-Key': customPath || f.name,
+                  'X-Filename': f.name
+                },
                 body: f
               });
-            } catch (networkErr) {
-              window.__r2Diag?.set?.(networkErr, msgs.r2CORS);
-              throw new Error(msgs.r2PutFailed + ' [network/CORS error: ' + (networkErr?.message || 'failed to fetch') + ']');
+              const directText = await directResp.text();
+              let directData = {};
+              try { directData = JSON.parse(directText); } catch (_) { /* noop */ }
+              if (!directResp.ok || !directData.ok) {
+                throw new Error(directData.error || ('r2_direct_failed (' + (directResp.status || 'network') + ')'));
+              }
+              // Confirm catalog
+              await apiFetch('/api/admin/r2/upload-confirm', {
+                method: 'POST',
+                body: JSON.stringify({ r2Key: directData.r2Key, filename: f.name, sizeBytes: f.size, contentType: f.type || 'application/octet-stream' })
+              });
+              directUploadOk = true;
+            } catch (directErr) {
+              window.__r2Diag?.set?.(directErr, msgs.r2CORS);
             }
 
-            if (!putResp.ok) {
-              let statusHint = putResp.status ? 'status ' + putResp.status : 'network_error';
-              let bodySnippet = '';
+            if (!directUploadOk) {
+              // 2. Fallback to presigned PUT
+              let presignData;
               try {
-                if (putResp.type !== 'opaque') {
-                  const text = await putResp.text();
-                  if (text) bodySnippet = ' body: ' + text.slice(0, 200);
-                } else {
-                  statusHint += ' (opaque/CORS)';
-                }
-              } catch (_) { /* ignore */ }
-              const errorObj = new Error(msgs.r2PutFailed + ' [' + statusHint + ']' + (bodySnippet || ''));
-              window.__r2Diag?.set?.(errorObj, msgs.r2CORS);
-              throw errorObj;
-            }
+                presignData = await apiFetch('/api/admin/r2/upload-url', {
+                  method: 'POST',
+                  body: JSON.stringify({ filename: customPath || f.name, contentType: f.type || 'application/octet-stream' })
+                });
+              } catch (presignErr) {
+                throw new Error(msgs.uploadBlocked + ' [presign failed: ' + (presignErr?.message || 'unknown') + ']');
+              }
 
-            // 3. Confirm upload to backend
-            await apiFetch('/api/admin/r2/upload-confirm', {
-              method: 'POST',
-              body: JSON.stringify({ r2Key: presignData.r2Key, filename: f.name, sizeBytes: f.size, contentType: f.type || 'application/octet-stream' })
-            });
+              let putResp;
+              try {
+                putResp = await fetch(presignData.uploadUrl, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': f.type || 'application/octet-stream' },
+                  body: f
+                });
+              } catch (networkErr) {
+                window.__r2Diag?.set?.(networkErr, msgs.r2CORS);
+                throw new Error(msgs.r2PutFailed + ' [network/CORS error: ' + (networkErr?.message || 'failed to fetch') + ']');
+              }
+
+              if (!putResp.ok) {
+                let statusHint = putResp.status ? 'status ' + putResp.status : 'network_error';
+                let bodySnippet = '';
+                try {
+                  if (putResp.type !== 'opaque') {
+                    const text = await putResp.text();
+                    if (text) bodySnippet = ' body: ' + text.slice(0, 200);
+                  } else {
+                    statusHint += ' (opaque/CORS)';
+                  }
+                } catch (_) { /* ignore */ }
+                const errorObj = new Error(msgs.r2PutFailed + ' [' + statusHint + ']' + (bodySnippet || ''));
+                window.__r2Diag?.set?.(errorObj, msgs.r2CORS);
+                throw errorObj;
+              }
+
+              await apiFetch('/api/admin/r2/upload-confirm', {
+                method: 'POST',
+                body: JSON.stringify({ r2Key: presignData.r2Key, filename: f.name, sizeBytes: f.size, contentType: f.type || 'application/octet-stream' })
+              });
+            }
           }
 
           row.className = 'upload-result-row result-success';
