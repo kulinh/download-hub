@@ -88,6 +88,11 @@
       <p id="toolbar-status" class="result" role="status" aria-live="polite"></p>
     </div>
 
+    <div id="r2-diag-panel" class="alert alert-warn" style="display:none;margin-bottom:16px;">
+      <strong><%= locale === 'vi' ? 'Upload bị chặn (CORS / cấu hình R2).' : 'Upload blocked (CORS / R2 config).' %></strong>
+      <div id="r2-diag-body" style="margin-top:6px;font-size:14px;line-height:1.4;"></div>
+    </div>
+
     <!-- Storage Inventory Table -->
     <section class="card admin-card">
       <h2 class="admin-section-title">

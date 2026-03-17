@@ -513,6 +513,7 @@
                 body: f
               });
             } catch (networkErr) {
+              window.__r2Diag?.set?.(networkErr, msgs.r2CORS);
               throw new Error(msgs.r2PutFailed + ' [network/CORS error: ' + (networkErr?.message || 'failed to fetch') + ']');
             }
 
@@ -527,7 +528,9 @@
                   statusHint += ' (opaque/CORS)';
                 }
               } catch (_) { /* ignore */ }
-              throw new Error(msgs.r2PutFailed + ' [' + statusHint + ']' + (bodySnippet || ''));
+              const errorObj = new Error(msgs.r2PutFailed + ' [' + statusHint + ']' + (bodySnippet || ''));
+              window.__r2Diag?.set?.(errorObj, msgs.r2CORS);
+              throw errorObj;
             }
 
             // 3. Confirm upload to backend
@@ -542,6 +545,7 @@
         } catch (err) {
           row.className = 'upload-result-row result-error';
           row.textContent = f.name + ' — ' + msgs.uploadErr + ' (' + err.message + ')';
+          window.__r2Diag?.set?.(err, msgs.r2CORS);
         }
       }
 
@@ -613,9 +617,32 @@
   // Expose small diagnostics helper for operators to inspect last error
   window.__r2Diag = {
     lastError: null,
-    set(err) { this.lastError = err; console.error('[R2]', err); },
-    get() { return this.lastError; }
+    lastHint: null,
+    set(err, hint) {
+      this.lastError = err;
+      this.lastHint = hint || null;
+      console.error('[R2]', err, hint || '');
+      renderDiagPanel(err, hint);
+    },
+    get() { return this.lastError; },
+    hint() { return this.lastHint; }
   };
+
+  function renderDiagPanel(err, hint) {
+    const panel = document.getElementById('r2-diag-panel');
+    const body = document.getElementById('r2-diag-body');
+    if (!panel || !body) return;
+    if (!err) {
+      panel.style.display = 'none';
+      body.innerHTML = '';
+      return;
+    }
+    const hintText = hint || msgs.r2CORS;
+    panel.style.display = '';
+    body.innerHTML = '<div>' + esc(err.message || String(err)) + '</div>' +
+      '<div style="margin-top:4px;color:var(--color-muted,#6b7280);">' + esc(hintText) + '</div>' +
+      '<div style="margin-top:6px;font-family:monospace;font-size:13px;word-break:break-all;">' + esc(String(err.stack || '')) + '</div>';
+  }
 
   // --- Init ---
   checkR2Config();
