@@ -29,7 +29,8 @@ const helmetMiddleware = helmet({
         'https://*.hcaptcha.com'
       ],
       // unsafe-inline kept for captcha widget injected styles; nonce covers app scripts
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:'],
       connectSrc: [
         "'self'",
