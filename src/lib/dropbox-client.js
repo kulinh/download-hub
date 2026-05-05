@@ -115,6 +115,7 @@ export async function streamFromDropbox(fileItem, res) {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Dropbox-API-Arg': JSON.stringify({ path: dropboxPath })
+        .replace(/[^\x00-\x7F]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
     },
     signal: AbortSignal.timeout(30_000)
   });
@@ -139,7 +140,7 @@ export async function streamFromDropbox(fileItem, res) {
 
   res.setHeader('Content-Type', fileItem.mimeType || 'application/octet-stream');
   if (contentLength) res.setHeader('Content-Length', contentLength);
-  res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+  res.setHeader('Content-Disposition', buildContentDisposition(downloadName));
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.setHeader('Cache-Control', 'private, no-store, max-age=0');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -164,6 +165,12 @@ export async function streamFromDropbox(fileItem, res) {
 
 function sanitizeFilename(name) {
   return String(name).replace(/[\r\n"]/g, '_');
+}
+
+function buildContentDisposition(filename) {
+  const ascii = filename.replace(/[^\x20-\x7E]/g, '_');
+  const encoded = encodeURIComponent(filename);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
 // Exported for tests only
