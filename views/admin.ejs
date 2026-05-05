@@ -1,22 +1,27 @@
 <!doctype html>
-<html lang="<%= locale %>">
+<html lang="<%= locale %>" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Ops</title>
   <link rel="stylesheet" href="/assets/site.css" />
+  <script nonce="<%= cspNonce %>">(function(){var t=localStorage.getItem('theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t)})();</script>
 </head>
 <body>
   <main class="container admin-container">
     <div class="top-bar">
       <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
-      <div style="display:flex;align-items:center;gap:1rem">
+      <div style="display:flex;align-items:center;gap:8px;">
         <nav class="lang-switch small" aria-label="Language selection">
           <a href="/admin?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>">VI</a>
           <a href="/admin?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
         </nav>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
         <form method="POST" action="/admin/logout" style="margin:0">
-          <button type="submit" class="button button-secondary" style="padding:0.25rem 0.75rem;font-size:0.85rem">
+          <button type="submit" class="button button-ghost button-sm">
             <%= locale === 'vi' ? 'Đăng xuất' : 'Logout' %>
           </button>
         </form>
@@ -33,11 +38,11 @@
             : 'Manage file catalog, sync files.json, and R2 storage operations.' %>
         </p>
         <% if (r2Enabled) { %>
-          <p class="note" style="color:var(--color-success,#22c55e)">
+          <p class="note" style="color:var(--color-success)">
             <%= locale === 'vi' ? '✓ R2 storage đang hoạt động' : '✓ R2 storage active' %>
           </p>
         <% } else { %>
-          <p class="note" style="color:var(--color-warn,#f59e0b)">
+          <p class="note" style="color:var(--color-warn)">
             <%= locale === 'vi' ? '⚠ R2 chưa bật — đang dùng local disk' : '⚠ R2 disabled — using local disk' %>
           </p>
         <% } %>
@@ -114,5 +119,6 @@
     data-status-mismatch="<%= locale === 'vi' ? 'Lệch metadata' : 'Metadata mismatch' %>"
     data-status-missing="<%= locale === 'vi' ? 'Thiếu file trên disk' : 'Missing on disk' %>"
   ></script>
+  <script src="/assets/theme.js"></script>
 </body>
 </html>

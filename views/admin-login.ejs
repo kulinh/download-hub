@@ -1,32 +1,36 @@
 <!doctype html>
-<html lang="<%= locale %>">
+<html lang="<%= locale %>" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin Login</title>
   <link rel="stylesheet" href="/assets/site.css" />
+  <script nonce="<%= cspNonce %>">(function(){var t=localStorage.getItem('theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t)})();</script>
 </head>
 <body>
   <main class="container admin-container" style="max-width:420px;margin-top:5vh">
-    <header class="hero admin-hero" style="margin-bottom:1.5rem">
-      <div>
-        <p class="eyebrow">ops / admin</p>
-        <h1><%= locale === 'vi' ? 'Đăng nhập Admin' : 'Admin Login' %></h1>
-      </div>
+    <div class="top-bar" style="margin-bottom:28px;">
+      <p class="eyebrow" style="margin:0;">ops / admin</p>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
+        <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </div>
+
+    <header style="margin-bottom:24px;">
+      <h1 style="margin:0;font-size:1.4rem;"><%= locale === 'vi' ? 'Đăng nhập Admin' : 'Admin Login' %></h1>
     </header>
 
     <section class="card admin-card">
       <% if (error) { %>
-        <div class="captcha-unavailable" role="alert" style="margin-bottom:1rem">
-          <span class="captcha-unavailable-icon" aria-hidden="true">⚠️</span>
-          <div>
-            <p class="captcha-unavailable-message"><%= error %></p>
-          </div>
+        <div class="alert alert-error" role="alert">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span><%= error %></span>
         </div>
       <% } %>
 
       <form method="POST" action="/admin/login" autocomplete="off">
-        <div class="field-group" style="margin-bottom:1rem">
+        <div class="field-group">
           <label class="field-label" for="username">
             <%= locale === 'vi' ? 'Tên đăng nhập' : 'Username' %>
           </label>
@@ -41,7 +45,7 @@
           />
         </div>
 
-        <div class="field-group" style="margin-bottom:1.25rem">
+        <div class="field-group">
           <label class="field-label" for="password">
             <%= locale === 'vi' ? 'Mật khẩu' : 'Password' %>
           </label>
@@ -56,19 +60,15 @@
         </div>
 
         <% if (hcaptcha) { %>
-          <div class="h-captcha" data-sitekey="<%= hcaptcha.siteKey %>" style="margin-bottom:1.25rem"></div>
+          <div class="h-captcha" data-sitekey="<%= hcaptcha.siteKey %>"></div>
         <% } else { %>
-          <div class="captcha-unavailable" role="alert" style="margin-bottom:1rem">
-            <span class="captcha-unavailable-icon" aria-hidden="true">🔒</span>
-            <div>
-              <p class="captcha-unavailable-heading">
-                <%= locale === 'vi' ? 'hCaptcha chưa cấu hình' : 'hCaptcha not configured' %>
-              </p>
-            </div>
+          <div class="alert alert-warn" role="alert">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0;margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span><%= locale === 'vi' ? 'hCaptcha chưa cấu hình' : 'hCaptcha not configured' %></span>
           </div>
         <% } %>
 
-        <button type="submit" class="button" style="width:100%">
+        <button type="submit" class="button" style="width:100%;justify-content:center;">
           <%= locale === 'vi' ? 'Đăng nhập' : 'Login' %>
         </button>
       </form>
@@ -76,12 +76,8 @@
   </main>
 
   <% if (hcaptcha) { %>
-    <script
-      src="<%= hcaptcha.scriptSrc %>"
-      async
-      defer
-      nonce="<%= cspNonce %>"
-    ></script>
+    <script src="<%= hcaptcha.scriptSrc %>" async defer nonce="<%= cspNonce %>"></script>
   <% } %>
+  <script src="/assets/theme.js"></script>
 </body>
 </html>

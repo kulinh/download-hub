@@ -60,7 +60,8 @@ app.use((req, res) => {
     locale,
     title: '404',
     message: locale === 'vi' ? 'Không tìm thấy trang.' : 'Not Found',
-    t: (key) => t(locale, key)
+    t: (key) => t(locale, key),
+    cspNonce: res.locals.cspNonce
   });
 });
 
@@ -84,7 +85,8 @@ app.use((error, req, res, _next) => {
     locale,
     title: String(statusCode),
     message,
-    t: (key) => t(locale, key)
+    t: (key) => t(locale, key),
+    cspNonce: res.locals.cspNonce
   });
 });
 

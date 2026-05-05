@@ -48,7 +48,8 @@ router.get('/', async (req, res, next) => {
       locale,
       t: translate,
       provider,
-      files: files.map((item) => attachDisplaySize(item, locale))
+      files: files.map((item) => attachDisplaySize(item, locale)),
+      cspNonce: res.locals.cspNonce
     });
   } catch (error) {
     next(error);
