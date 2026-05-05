@@ -2,6 +2,7 @@ import { config } from './config.js';
 
 const TOKEN_URL = 'https://api.dropbox.com/oauth2/token';
 const DOWNLOAD_URL = 'https://content.dropboxapi.com/2/files/download';
+const UPLOAD_URL = 'https://content.dropboxapi.com/2/files/upload';
 const METADATA_URL = 'https://api.dropboxapi.com/2/files/get_metadata';
 
 // In-process token cache — one access token per process lifetime
@@ -63,6 +64,32 @@ export async function getDropboxMetadata(dropboxPath) {
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
     throw new Error(`dropbox_metadata_failed: ${resp.status} ${text.slice(0, 200)}`);
+  }
+
+  return resp.json();
+}
+
+export async function uploadToDropbox(buffer, dropboxPath, contentType = 'application/octet-stream') {
+  const token = await getAccessToken();
+  const resp = await fetch(UPLOAD_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/octet-stream',
+      'Dropbox-API-Arg': JSON.stringify({
+        path: dropboxPath,
+        mode: 'overwrite',
+        autorename: false,
+        mute: false
+      })
+    },
+    body: buffer,
+    signal: AbortSignal.timeout(300_000)
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`dropbox_upload_failed: ${resp.status} ${text.slice(0, 300)}`);
   }
 
   return resp.json();

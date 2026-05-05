@@ -53,7 +53,7 @@ import {
 } from '../lib/file-store.js';
 import { isR2Configured, listR2Objects, deleteR2Object, getPresignedDownloadUrl } from '../lib/r2-client.js';
 import { getPresignedUploadUrl as getSdkPresignedUploadUrl, isR2Enabled, shouldUseLocalStorage, uploadBufferToR2 } from '../lib/r2-storage.js';
-import { isDropboxConfigured, getDropboxMetadata } from '../lib/dropbox-client.js';
+import { isDropboxConfigured, getDropboxMetadata, uploadToDropbox } from '../lib/dropbox-client.js';
 import {
   clearAdminSession,
   issueAdminSession,
@@ -867,6 +867,75 @@ router.post('/api/admin/dropbox/verify-path', requireAdminSession, enforceJsonCo
     }
     const meta = await getDropboxMetadata(dropboxPath.trim());
     res.json({ ok: true, name: meta.name, size: meta.size, tag: meta['.tag'] });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Upload file to Dropbox ────────────────────────────────────────────────────
+
+const dropboxUploadParser = express.raw({ limit: config.localUploadMaxBytes, type: () => true });
+
+router.post('/api/admin/dropbox/upload', requireAdminSession, dropboxUploadParser, async (req, res, next) => {
+  try {
+    if (!isDropboxConfigured()) {
+      return res.status(503).json({ ok: false, error: 'dropbox_not_configured' });
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ ok: false, error: 'empty_body' });
+    }
+    if (req.body.length > config.localUploadMaxBytes) {
+      return res.status(413).json({ ok: false, error: 'payload_too_large' });
+    }
+
+    const filename = decodeURIComponent(req.headers['x-filename'] || 'upload.bin').replace(/[/\\]/g, '_');
+    const rawPath = decodeURIComponent(req.headers['x-dropbox-path'] || '');
+    const dropboxPath = rawPath ? (rawPath.startsWith('/') ? rawPath : '/' + rawPath) : '/dl888/' + filename;
+    const contentType = req.headers['x-content-type'] || 'application/octet-stream';
+
+    const meta = await uploadToDropbox(req.body, dropboxPath, contentType);
+    const sizeBytes = meta.size || req.body.length;
+    const downloadName = filename;
+
+    const catalog = await getAllFiles();
+    const existing = catalog.find((e) => e.storage?.dropboxPath === dropboxPath);
+    let slug;
+    if (existing) {
+      existing.sizeBytes = sizeBytes;
+      existing.mimeType = contentType;
+      existing.storage = { ...existing.storage, provider: 'dropbox', dropboxPath, downloadName };
+      existing.storageProvider = 'dropbox';
+      existing.updatedAt = new Date().toISOString();
+      slug = existing.slug;
+    } else {
+      slug = slugify(path.basename(filename, path.extname(filename))) + '-' + Date.now().toString(36);
+      catalog.push({
+        id: slug,
+        slug,
+        title: { vi: titleFromKey(filename), en: titleFromKey(filename) },
+        summary: { vi: '', en: '' },
+        description: { vi: '', en: '' },
+        version: '1.0.0',
+        platform: inferPlatform(filename),
+        language: ['vi', 'en'],
+        sizeBytes,
+        checksumSha256: '',
+        mimeType: contentType,
+        storage: { provider: 'dropbox', dropboxPath, downloadName },
+        storageProvider: 'dropbox',
+        published: false,
+        featured: false,
+        demo: false,
+        tags: [],
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    await writeRawFilesIndex(catalog);
+    await reloadFiles();
+
+    res.json({ ok: true, slug, dropboxPath, sizeBytes, contentType });
   } catch (err) {
     next(err);
   }

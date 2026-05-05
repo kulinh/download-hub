@@ -620,6 +620,80 @@
     if (uploadModalBody) uploadModalBody.innerHTML = '';
   }
 
+  function openDropboxUploadModal(files) {
+    if (!uploadModal || !uploadModalBody) return;
+    var titleEl = document.getElementById('upload-modal-title');
+    if (titleEl) titleEl.textContent = locale === 'vi' ? 'Upload lên Dropbox' : 'Upload to Dropbox';
+
+    var fileList = Array.from(files);
+    uploadModalBody.innerHTML =
+      '<div class="upload-file-list">' +
+        fileList.map(function (f, i) {
+          var defaultPath = '/dl888/' + f.name;
+          return '<div class="upload-file-row">' +
+            '<span class="upload-filename">' + esc(f.name) + '</span>' +
+            '<span class="upload-filesize">(' + esc(formatBytes(f.size)) + ')</span>' +
+            '<input class="text-input text-input-sm" placeholder="' + esc(locale === 'vi' ? 'Đường dẫn Dropbox' : 'Dropbox path') + '" id="dbx-path-' + i + '" value="' + esc(defaultPath) + '" />' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+      '<p style="font-size:12px;color:var(--color-muted,#6b7280);margin:6px 0 10px;">' +
+        (locale === 'vi' ? 'Đường dẫn đích trong Dropbox (bắt đầu bằng /). File sẽ được ghi đè nếu đã tồn tại.' : 'Destination path in Dropbox (starts with /). Existing files will be overwritten.') +
+      '</p>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="button" id="start-dropbox-upload-btn">' + esc(labels.uploadBtn || (locale === 'vi' ? 'Bắt đầu Upload' : 'Start Upload')) + '</button>' +
+        '<button type="button" class="button button-ghost" id="upload-cancel-btn">' + esc(labels.cancel) + '</button>' +
+      '</div>' +
+      '<div id="upload-results" class="upload-results"></div>';
+
+    uploadModal.hidden = false;
+    focusTrap(uploadModal);
+    document.getElementById('upload-cancel-btn').addEventListener('click', closeUploadModal);
+
+    document.getElementById('start-dropbox-upload-btn').addEventListener('click', async function () {
+      var startBtn = document.getElementById('start-dropbox-upload-btn');
+      var resultsEl = document.getElementById('upload-results');
+      if (startBtn) startBtn.disabled = true;
+      if (resultsEl) resultsEl.innerHTML = '';
+
+      for (var i = 0; i < fileList.length; i++) {
+        var f = fileList[i];
+        var dropboxPath = (document.getElementById('dbx-path-' + i) || {}).value || ('/dl888/' + f.name);
+        var row = document.createElement('div');
+        row.className = 'upload-result-row result-pending';
+        row.textContent = f.name + ' — ' + msgs.uploading;
+        resultsEl.appendChild(row);
+
+        try {
+          var resp = await fetch('/api/admin/dropbox/upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/octet-stream',
+              'X-CSRF-Token': csrf,
+              'X-Filename': encodeURIComponent(f.name),
+              'X-Dropbox-Path': encodeURIComponent(dropboxPath),
+              'X-Content-Type': f.type || 'application/octet-stream'
+            },
+            body: f
+          });
+          var text = await resp.text();
+          var data = {};
+          try { data = JSON.parse(text); } catch (_) { /* noop */ }
+          if (!resp.ok || !data.ok) {
+            throw new Error(data.error || ('dropbox_upload_failed (' + (resp.status || 'network') + ')'));
+          }
+          row.className = 'upload-result-row result-success';
+          row.textContent = f.name + ' — ' + msgs.uploadOk + ' (' + esc(data.dropboxPath) + ')';
+        } catch (err) {
+          row.className = 'upload-result-row result-error';
+          row.textContent = f.name + ' — ' + msgs.uploadErr + ' (' + esc(err.message) + ')';
+        }
+      }
+
+      await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
+    });
+  }
+
   function openDropboxRegisterModal() {
     if (!uploadModal || !uploadModalBody) return;
     var titleEl = document.getElementById('upload-modal-title');
@@ -703,6 +777,16 @@
   // --- Toolbar button bindings ---
   if (btnRefresh) btnRefresh.addEventListener('click', function () { loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag }); });
   if (btnSyncIndex) btnSyncIndex.addEventListener('click', syncIndex);
+  var dropboxUploadInput = document.getElementById('dropbox-upload-input');
+  if (dropboxUploadInput) {
+    dropboxUploadInput.addEventListener('change', function () {
+      if (dropboxUploadInput.files && dropboxUploadInput.files.length) {
+        openDropboxUploadModal(dropboxUploadInput.files);
+        dropboxUploadInput.value = '';
+      }
+    });
+  }
+
   var btnDropboxRegister = document.getElementById('btn-dropbox-register');
   if (btnDropboxRegister) btnDropboxRegister.addEventListener('click', openDropboxRegisterModal);
 
