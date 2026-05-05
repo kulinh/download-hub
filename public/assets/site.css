@@ -587,6 +587,12 @@ section h2 { margin-bottom: 16px; font-size: 1.3rem; }
   padding: 2px 8px;
 }
 
+.r2-badge--dropbox {
+  background: rgba(0,112,243,0.1);
+  color: #0070f3;
+  border-color: rgba(0,112,243,0.2);
+}
+
 /* Modals */
 .modal-overlay {
   position: fixed;

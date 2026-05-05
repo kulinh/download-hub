@@ -196,25 +196,36 @@
         promises.push(Promise.resolve(null));
       }
 
-      const [r2Data, localData] = await Promise.all(promises);
+      promises.push(apiFetch('/api/admin/dropbox/files').catch(function () { return null; }));
+
+      const [r2Data, localData, dropboxData] = await Promise.all(promises);
       const merged = [];
       const seen = new Set();
 
       if (r2Data?.files?.length) {
         r2Data.files.forEach((f) => {
-          const key = (f.storageProvider || 'r2') + ':' + (f.slug || f.r2Key || f.storage?.relativePath || '');
+          const key = 'r2:' + (f.slug || f.r2Key || f.storage?.relativePath || '');
           if (seen.has(key)) return;
           seen.add(key);
-          merged.push({ ...f, storageProvider: f.storageProvider || f.storage?.provider || 'r2' });
+          merged.push({ ...f, storageProvider: 'r2' });
         });
       }
 
       if (localData?.files?.length) {
         localData.files.forEach((f) => {
-          const key = (f.storageProvider || 'local') + ':' + (f.slug || f.r2Key || f.storage?.relativePath || '');
+          const key = 'local:' + (f.slug || f.storage?.relativePath || '');
           if (seen.has(key)) return;
           seen.add(key);
-          merged.push({ ...f, storageProvider: f.storageProvider || f.storage?.provider || 'local' });
+          merged.push({ ...f, storageProvider: 'local' });
+        });
+      }
+
+      if (dropboxData?.files?.length) {
+        dropboxData.files.forEach((f) => {
+          const key = 'dropbox:' + (f.slug || f.storage?.dropboxPath || '');
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push({ ...f, storageProvider: 'dropbox' });
         });
       }
 
@@ -245,12 +256,16 @@
       const publishedCell = isPublished
         ? '<span class="status-pill status-pill--match">✓</span>'
         : '<span class="status-pill status-pill--missing">—</span>';
-      const slugOrKey = file.slug || file.r2Key || file.storage?.relativePath;
+      const slugOrKey = file.slug || file.r2Key || file.storage?.relativePath || file.storage?.dropboxPath;
       const storageProvider = file.storageProvider || file.storage?.provider || (r2Configured ? 'r2' : 'local');
-      const badge = storageProvider === 'local'
+      const badge = storageProvider === 'dropbox'
+        ? '<span class="r2-badge r2-badge--dropbox">Dropbox</span>'
+        : storageProvider === 'local'
         ? '<span class="r2-badge">LOCAL</span>'
         : '<span class="r2-badge">R2</span>';
-      const keyCellValue = storageProvider === 'local'
+      const keyCellValue = storageProvider === 'dropbox'
+        ? (file.storage?.dropboxPath || file.slug || '—')
+        : storageProvider === 'local'
         ? (file.storage?.relativePath || file.slug || '—')
         : (file.r2Key || file.storage?.objectKey || '—');
 
@@ -314,7 +329,7 @@
     setStatus('pending', msgs.deleting);
     try {
       const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
-      await apiFetch(endpoint + encodeURIComponent(slug), { method: 'DELETE' });
+      await apiFetch(endpoint + encodeURIComponent(slug || key), { method: 'DELETE' });
       await loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
       setStatus('success', msgs.deleted);
     } catch (err) {
@@ -328,6 +343,7 @@
     setStatus('pending', msgs.loading);
     try {
       const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
+      // dropbox uses /api/admin/r2/files/ — routes are slug-based and work for any provider
       await apiFetch(endpoint + encodeURIComponent(slug) + '/publish', {
         method: 'PATCH',
         body: JSON.stringify({ published: publish })
@@ -392,6 +408,7 @@
       statusEl.textContent = msgs.loading;
       try {
         const endpoint = storageProvider === 'local' ? '/api/admin/local/files/' : '/api/admin/r2/files/';
+        // dropbox uses /api/admin/r2/files/ — routes are slug-based and work for any provider
         await apiFetch(endpoint + encodeURIComponent(slug) + '/metadata', {
           method: 'PATCH',
           body: JSON.stringify({
@@ -603,6 +620,65 @@
     if (uploadModalBody) uploadModalBody.innerHTML = '';
   }
 
+  function openDropboxRegisterModal() {
+    if (!uploadModal || !uploadModalBody) return;
+    var titleEl = document.getElementById('upload-modal-title');
+    if (titleEl) titleEl.textContent = locale === 'vi' ? 'Đăng ký file Dropbox' : 'Register Dropbox File';
+    uploadModalBody.innerHTML = [
+      '<form id="dropbox-register-form" style="display:flex;flex-direction:column;gap:14px;">',
+      '<div>',
+      '  <label style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;" for="dbx-path">' + (locale === 'vi' ? 'Đường dẫn Dropbox' : 'Dropbox Path') + '</label>',
+      '  <input id="dbx-path" type="text" class="input" style="width:100%;" placeholder="/Apps/dl888/filename.zip" required />',
+      '  <p style="font-size:12px;color:var(--color-muted,#6b7280);margin-top:4px;">' + (locale === 'vi' ? 'Đường dẫn đầy đủ của file trong Dropbox (bắt đầu bằng /)' : 'Full path of the file in Dropbox (starts with /)') + '</p>',
+      '</div>',
+      '<div>',
+      '  <label style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;" for="dbx-download-name">' + (locale === 'vi' ? 'Tên file tải về' : 'Download filename') + '</label>',
+      '  <input id="dbx-download-name" type="text" class="input" style="width:100%;" placeholder="my-app.zip" />',
+      '  <p style="font-size:12px;color:var(--color-muted,#6b7280);margin-top:4px;">' + (locale === 'vi' ? 'Để trống sẽ lấy tên file từ đường dẫn' : 'Leave blank to use filename from path') + '</p>',
+      '</div>',
+      '<div>',
+      '  <label style="display:block;margin-bottom:4px;font-size:14px;font-weight:500;" for="dbx-title">' + (locale === 'vi' ? 'Tiêu đề hiển thị' : 'Display title') + '</label>',
+      '  <input id="dbx-title" type="text" class="input" style="width:100%;" placeholder="' + (locale === 'vi' ? 'Tên sản phẩm...' : 'Product name...') + '" />',
+      '</div>',
+      '<div id="dropbox-register-status" style="min-height:20px;font-size:13px;"></div>',
+      '<div style="display:flex;gap:10px;justify-content:flex-end;">',
+      '  <button type="button" id="dropbox-register-cancel" class="button button-secondary button-sm">' + (locale === 'vi' ? 'Huỷ' : 'Cancel') + '</button>',
+      '  <button type="submit" id="dropbox-register-submit" class="button button-accent button-sm">' + (locale === 'vi' ? 'Đăng ký' : 'Register') + '</button>',
+      '</div>',
+      '</form>'
+    ].join('');
+    uploadModal.hidden = false;
+    document.getElementById('dbx-path').focus();
+    document.getElementById('dropbox-register-cancel').addEventListener('click', closeUploadModal);
+    document.getElementById('dropbox-register-form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var statusEl = document.getElementById('dropbox-register-status');
+      var submitBtn = document.getElementById('dropbox-register-submit');
+      var dropboxPath = document.getElementById('dbx-path').value.trim();
+      var downloadName = document.getElementById('dbx-download-name').value.trim();
+      var title = document.getElementById('dbx-title').value.trim();
+      if (!dropboxPath) { statusEl.textContent = locale === 'vi' ? 'Vui lòng nhập đường dẫn Dropbox.' : 'Please enter a Dropbox path.'; return; }
+      statusEl.textContent = locale === 'vi' ? 'Đang đăng ký...' : 'Registering...';
+      submitBtn.disabled = true;
+      try {
+        var body = { dropboxPath: dropboxPath };
+        if (downloadName) body.downloadName = downloadName;
+        if (title) body.title = title;
+        var data = await apiFetch('/api/admin/dropbox/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        statusEl.style.color = 'var(--success,#10b981)';
+        statusEl.textContent = (locale === 'vi' ? 'Đã đăng ký: ' : 'Registered: ') + data.slug;
+        setTimeout(function () {
+          closeUploadModal();
+          loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
+        }, 1200);
+      } catch (err) {
+        statusEl.style.color = 'var(--error,#ef4444)';
+        statusEl.textContent = err.message || (locale === 'vi' ? 'Đăng ký thất bại.' : 'Registration failed.');
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
   // --- Modal close buttons ---
   if (uploadModalClose) uploadModalClose.addEventListener('click', closeUploadModal);
   if (editModalClose) editModalClose.addEventListener('click', closeEditModal);
@@ -627,6 +703,8 @@
   // --- Toolbar button bindings ---
   if (btnRefresh) btnRefresh.addEventListener('click', function () { loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag }); });
   if (btnSyncIndex) btnSyncIndex.addEventListener('click', syncIndex);
+  var btnDropboxRegister = document.getElementById('btn-dropbox-register');
+  if (btnDropboxRegister) btnDropboxRegister.addEventListener('click', openDropboxRegisterModal);
 
   if (uploadInput) {
     uploadInput.addEventListener('change', function () {
