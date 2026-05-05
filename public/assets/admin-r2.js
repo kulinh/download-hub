@@ -494,8 +494,7 @@
               method: 'POST',
               headers: {
                 'Content-Type': 'application/octet-stream',
-                'X-CSRF-Token': csrf,
-                'X-Filename': f.name
+                'X-CSRF-Token': csrf
               },
               body: f
             });
@@ -524,10 +523,7 @@
                 method: 'POST',
                 headers: {
                   'Content-Type': f.type || 'application/octet-stream',
-                  'Content-Length': String(f.size || 0),
-                  'X-CSRF-Token': csrf,
-                  'X-R2-Key': customPath || f.name,
-                  'X-Filename': f.name
+                  'X-CSRF-Token': csrf
                 },
                 body: f
               });
@@ -545,6 +541,7 @@
               directUploadOk = true;
             } catch (directErr) {
               window.__r2Diag?.set?.(directErr, msgs.r2CORS);
+              console.warn('[upload-direct] failed:', directErr?.message || directErr);
             }
 
             if (!directUploadOk) {

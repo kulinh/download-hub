@@ -81,7 +81,7 @@ export async function uploadToDropbox(buffer, dropboxPath, contentType = 'applic
         mode: 'overwrite',
         autorename: false,
         mute: false
-      })
+      }).replace(/[^\x00-\x7F]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
     },
     body: buffer,
     signal: AbortSignal.timeout(300_000)
