@@ -188,7 +188,8 @@ router.get('/admin/r2', requireAdminSessionPage, (req, res, next) => {
       csrfToken: res.locals.adminCsrfToken || '',
       cspNonce: res.locals.cspNonce,
       localStorageEnabled: config.storageProviders?.local,
-      r2Enabled: isR2Enabled()
+      r2Enabled: isR2Enabled(),
+      assetVersion: process.env.ASSET_VERSION || String(Math.floor(Date.now() / 60000))
     });
   } catch (err) {
     next(err);
@@ -794,55 +795,6 @@ router.get('/api/admin/dropbox/files', requireAdminSession, async (req, res, nex
         inCatalog: true
       }));
     res.json({ ok: true, files });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post('/api/admin/dropbox/register', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
-  try {
-    if (!isDropboxConfigured()) {
-      return res.status(503).json({ ok: false, error: 'dropbox_not_configured' });
-    }
-    const { dropboxPath, downloadName, titleVi, titleEn, summaryVi, summaryEn, version, platform, mimeType } = req.body || {};
-    if (!dropboxPath || typeof dropboxPath !== 'string') {
-      return res.status(400).json({ ok: false, error: 'dropboxPath_required' });
-    }
-    let meta;
-    try {
-      meta = await getDropboxMetadata(dropboxPath.trim());
-    } catch (err) {
-      return res.status(400).json({ ok: false, error: 'dropbox_path_not_found', detail: err.message });
-    }
-    const name = downloadName || meta.name || path.basename(dropboxPath.trim());
-    const slug = name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 80);
-    const entries = await readRawFilesIndex();
-    if (entries.some((e) => e.slug === slug || e.storage?.dropboxPath === dropboxPath.trim())) {
-      return res.status(409).json({ ok: false, error: 'already_registered', slug });
-    }
-    const newEntry = {
-      id: slug,
-      slug,
-      title: { vi: titleVi || name, en: titleEn || name },
-      summary: { vi: summaryVi || '', en: summaryEn || '' },
-      description: { vi: '', en: '' },
-      version: version || '1.0.0',
-      platform: platform || 'Generic',
-      language: ['vi', 'en'],
-      sizeBytes: meta.size || 0,
-      checksumSha256: '0'.repeat(64),
-      mimeType: mimeType || 'application/octet-stream',
-      storage: { provider: 'dropbox', dropboxPath: dropboxPath.trim(), downloadName: name },
-      storageProvider: 'dropbox',
-      published: false,
-      featured: false,
-      demo: false,
-      tags: [],
-      updatedAt: new Date().toISOString()
-    };
-    await writeRawFilesIndex([...entries, newEntry]);
-    await reloadFiles();
-    res.json({ ok: true, slug, entry: newEntry });
   } catch (err) {
     next(err);
   }
