@@ -64,7 +64,6 @@
 
   // --- DOM refs ---
   const r2StatusCard = document.getElementById('r2-config-status');
-  const adminToolbar = document.getElementById('admin-toolbar');
   const inventoryWrap = document.getElementById('r2-inventory-wrap');
   const fileBadge = document.getElementById('file-count-badge');
   const toolbarStatus = document.getElementById('toolbar-status');
@@ -122,13 +121,18 @@
     } catch (_) { return isoString; }
   }
 
+  let _statusTimer = null;
   function setStatus(type, text) {
     if (!toolbarStatus) return;
-    toolbarStatus.className = 'result';
-    if (type === 'error') toolbarStatus.classList.add('result-error');
-    if (type === 'success') toolbarStatus.classList.add('result-success');
-    if (type === 'pending') toolbarStatus.classList.add('result-pending');
+    clearTimeout(_statusTimer);
+    toolbarStatus.className = 'toolbar-status-inline';
+    if (type === 'error') toolbarStatus.classList.add('status-error');
+    if (type === 'success') toolbarStatus.classList.add('status-success');
+    if (type === 'pending') toolbarStatus.classList.add('status-pending');
     toolbarStatus.textContent = text;
+    if (type === 'success') {
+      _statusTimer = setTimeout(function () { toolbarStatus.textContent = ''; toolbarStatus.className = 'toolbar-status-inline'; }, 3000);
+    }
   }
 
   // --- API helpers ---
@@ -151,25 +155,44 @@
     return data;
   }
 
+  function renderStorageChips(r2Ok, localOk, dropboxOk, errorMsg) {
+    if (!r2StatusCard) return;
+    if (errorMsg) {
+      r2StatusCard.innerHTML = '<span class="storage-chip storage-chip--error">&#x26A0; ' + esc(errorMsg) + '</span>';
+      return;
+    }
+    var chips = '';
+    if (r2Ok) {
+      chips += '<span class="storage-chip storage-chip--ok">R2</span>';
+    } else {
+      chips += '<span class="storage-chip storage-chip--off">R2 off</span>';
+    }
+    if (dropboxOk) {
+      chips += '<span class="storage-chip storage-chip--ok">Dropbox</span>';
+    }
+    if (localOk) {
+      chips += '<span class="storage-chip storage-chip--ok">Local</span>';
+    }
+    r2StatusCard.innerHTML = chips;
+  }
+
   // --- R2 config check ---
   async function checkR2Config() {
     try {
       const data = await apiFetch('/api/admin/r2/status');
       r2ConfiguredFlag = Boolean(data.r2Configured);
       localAvailableFlag = Boolean(data.localAvailable);
+      renderStorageChips(data.r2Configured, data.localAvailable, data.dropboxConfigured, null);
       if (data.r2Configured || data.localAvailable) {
-        r2StatusCard.innerHTML = '<div class="alert alert-success"><span aria-hidden="true">✅</span> ' + esc(data.r2Configured ? msgs.r2Ok : msgs.r2LocalOnly) + '</div>';
-        if (adminToolbar) adminToolbar.style.display = '';
         loadInventory({ r2Configured: r2ConfiguredFlag, localAvailable: localAvailableFlag });
       } else {
-        r2StatusCard.innerHTML = '<div class="alert alert-warn"><span aria-hidden="true">⚠️</span> ' + esc(msgs.r2Missing) + '</div>';
         if (inventoryWrap) {
           inventoryWrap.innerHTML = '<div class="empty-state"><span class="empty-state-icon" aria-hidden="true">🔧</span>' +
             '<h3 class="empty-state-heading">' + esc(msgs.r2Unavail) + '</h3></div>';
         }
       }
     } catch (err) {
-      r2StatusCard.innerHTML = '<div class="alert alert-error"><span aria-hidden="true">❌</span> ' + esc(err.message) + '</div>';
+      renderStorageChips(false, false, false, err.message);
     }
   }
 

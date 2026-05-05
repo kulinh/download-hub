@@ -55,47 +55,45 @@
       </div>
     </header>
 
-    <!-- R2 Config Status -->
-    <section class="card admin-card" id="r2-status-card" style="margin-bottom:20px;">
-      <div id="r2-config-status">
-        <div class="spinner-inline" aria-label="<%= locale === 'vi' ? 'Đang kiểm tra cấu hình R2…' : 'Checking R2 config…' %>">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-          <span><%= locale === 'vi' ? 'Đang kiểm tra cấu hình R2…' : 'Checking R2 configuration…' %></span>
+    <!-- Action toolbar -->
+    <div class="admin-toolbar" id="admin-toolbar" style="margin-bottom:20px;">
+      <div class="toolbar-row">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <button type="button" id="btn-refresh" class="button button-secondary button-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <%= locale === 'vi' ? 'Làm mới' : 'Refresh' %>
+          </button>
+          <button type="button" id="btn-sync-index" class="button button-secondary button-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+            <%= locale === 'vi' ? 'Đồng bộ Index' : 'Sync Index' %>
+          </button>
+          <label class="button button-accent button-sm upload-label" for="r2-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên R2' : 'Upload file to R2' %>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <%= locale === 'vi' ? 'Upload R2' : 'Upload R2' %>
+          </label>
+          <input type="file" id="r2-upload-input" style="display:none;" multiple />
+          <% if (localStorageEnabled) { %>
+            <label class="button button-secondary button-sm upload-label" for="local-upload-input" aria-label="<%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21h9"/><path d="M12 12v9"/><path d="M12 8V3"/><path d="M5 21h3"/></svg>
+              <%= locale === 'vi' ? 'Upload Local' : 'Upload Local' %>
+            </label>
+            <input type="file" id="local-upload-input" style="display:none;" multiple />
+          <% } %>
+          <label class="button button-secondary button-sm upload-label" for="dropbox-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên Dropbox' : 'Upload file to Dropbox' %>">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Dropbox
+          </label>
+          <input type="file" id="dropbox-upload-input" style="display:none;" multiple />
+        </div>
+        <div id="r2-config-status" class="storage-status-chips" aria-live="polite">
+          <span class="storage-chip storage-chip--pending">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <%= locale === 'vi' ? 'Đang kết nối…' : 'Connecting…' %>
+          </span>
         </div>
       </div>
-    </section>
-
-    <!-- Action toolbar -->
-    <div class="admin-toolbar" id="admin-toolbar" style="margin-bottom:20px;display:none;">
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-        <button type="button" id="btn-refresh" class="button button-secondary button-sm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-          <%= locale === 'vi' ? 'Làm mới' : 'Refresh' %>
-        </button>
-        <button type="button" id="btn-sync-index" class="button button-secondary button-sm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-          <%= locale === 'vi' ? 'Đồng bộ Index' : 'Sync Index' %>
-        </button>
-        <label class="button button-accent button-sm upload-label" for="r2-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên R2' : 'Upload file to R2' %>">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <%= locale === 'vi' ? 'Upload R2' : 'Upload to R2' %>
-        </label>
-        <input type="file" id="r2-upload-input" style="display:none;" multiple />
-        <% if (localStorageEnabled) { %>
-          <label class="button button-secondary button-sm upload-label" for="local-upload-input" aria-label="<%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21h9"/><path d="M12 12v9"/><path d="M12 8V3"/><path d="M5 21h3"/></svg>
-            <%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>
-          </label>
-          <input type="file" id="local-upload-input" style="display:none;" multiple />
-        <% } %>
-        <label class="button button-secondary button-sm upload-label" for="dropbox-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên Dropbox' : 'Upload file to Dropbox' %>">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          <%= locale === 'vi' ? 'Upload Dropbox' : 'Upload to Dropbox' %>
-        </label>
-        <input type="file" id="dropbox-upload-input" style="display:none;" multiple />
-      </div>
       <div id="upload-progress" class="upload-progress" hidden></div>
-      <p id="toolbar-status" class="result" role="status" aria-live="polite"></p>
+      <p id="toolbar-status" class="toolbar-status-inline" role="status" aria-live="polite"></p>
     </div>
 
     <div id="r2-diag-panel" class="alert alert-warn" style="display:none;margin-bottom:16px;">

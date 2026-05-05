@@ -600,7 +600,37 @@ section h2 { margin-bottom: 16px; font-size: 1.2rem; }
 [data-theme="light"] .upload-label:hover { background: rgba(12,148,120,0.13); }
 
 /* Toolbar */
-.admin-toolbar { display: flex; flex-direction: column; gap: 10px; }
+.admin-toolbar { display: flex; flex-direction: column; gap: 8px; }
+.toolbar-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+/* Storage status chips */
+.storage-status-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.storage-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.75rem; font-weight: 500; letter-spacing: 0.01em;
+  padding: 3px 8px; border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--bg-card);
+  white-space: nowrap;
+}
+.storage-chip--ok { color: var(--success); border-color: rgba(94,234,212,0.3); background: var(--success-bg); }
+.storage-chip--ok::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+.storage-chip--off { opacity: 0.45; }
+.storage-chip--error { color: var(--error); border-color: rgba(240,107,107,0.3); background: var(--error-bg); }
+.storage-chip--pending { opacity: 0.6; }
+[data-theme="light"] .storage-chip--ok { border-color: rgba(5,150,105,0.3); }
+
+/* Inline toolbar status (replaces full-width .result bar) */
+.toolbar-status-inline {
+  font-size: 0.8rem; color: var(--text-muted);
+  min-height: 0; padding: 0; margin: 0;
+  transition: opacity 0.3s;
+}
+.toolbar-status-inline:empty { display: none; }
+.toolbar-status-inline.status-error { color: var(--error); }
+.toolbar-status-inline.status-success { color: var(--success); }
+.toolbar-status-inline.status-pending { color: var(--text-muted); }
 
 /* Upload progress */
 .upload-progress {

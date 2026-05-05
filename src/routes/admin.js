@@ -204,6 +204,7 @@ router.get('/api/admin/r2/status', requireAdminSession, (req, res) => {
     ok: true,
     r2Configured: configured,
     localAvailable: config.storageProviders?.local,
+    dropboxConfigured: isDropboxConfigured(),
     bucket: configured ? config.r2?.bucket : null
   });
 });
