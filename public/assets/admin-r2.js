@@ -278,11 +278,11 @@
         '<td class="num-cell">' + esc(formatBytes(file.sizeBytes)) + '</td>' +
         '<td class="date-cell">' + esc(formatDate(file.updatedAt || file.lastModified)) + '</td>' +
         '<td class="center-cell">' + publishedCell + '</td>' +
-        '<td class="actions-cell">' +
-          '<button type="button" class="button button-secondary button-xs btn-edit" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.edit) + '</button> ' +
-          publishBtn + ' ' +
+        '<td><div class="actions-cell">' +
+          '<button type="button" class="button button-secondary button-xs btn-edit" data-slug="' + esc(slugOrKey) + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.edit) + '</button>' +
+          publishBtn +
           '<button type="button" class="button button-danger button-xs btn-delete" data-slug="' + esc(slugOrKey) + '" data-key="' + esc(file.r2Key || file.storage?.relativePath || '') + '" data-provider="' + esc(storageProvider) + '">' + esc(labels.delete) + '</button>' +
-        '</td>' +
+        '</div></td>' +
       '</tr>';
     });
 
@@ -292,7 +292,7 @@
         '<th class="num-cell">' + esc(labels.size) + '</th>' +
         '<th class="date-cell">' + esc(labels.modified) + '</th>' +
         '<th class="center-cell">' + esc(labels.published) + '</th>' +
-        '<th class="actions-cell">' + esc(labels.actions) + '</th>' +
+        '<th>' + esc(labels.actions) + '</th>' +
       '</tr></thead><tbody>' + rows.join('') + '</tbody></table>';
 
     // Bind row actions
