@@ -6,6 +6,7 @@ import { normalizeFileEntries, normalizeObjectKey } from './storage-metadata.js'
 
 let cachedFiles = null;
 let cachedFilesIndexPath = null;
+let _writeLock = Promise.resolve();
 
 async function loadFiles() {
   const raw = await fs.readFile(config.filesIndexPath, 'utf8');
@@ -24,13 +25,20 @@ export async function readRawFilesIndex() {
   return parsed;
 }
 
-export async function writeRawFilesIndex(entries) {
+async function _doWriteFilesIndex(entries) {
   const normalizedEntries = normalizeFileEntries(entries);
   const serialized = `${JSON.stringify(normalizedEntries, null, 2)}\n`;
   await fs.writeFile(config.filesIndexPath, serialized, 'utf8');
   cachedFilesIndexPath = config.filesIndexPath;
   cachedFiles = normalizedEntries.filter((item) => item.published);
   return normalizedEntries;
+}
+
+export function writeRawFilesIndex(entries) {
+  // Serialize all writes through a single promise chain to prevent
+  // concurrent read-modify-write races that would silently drop catalog entries.
+  _writeLock = _writeLock.then(() => _doWriteFilesIndex(entries));
+  return _writeLock;
 }
 
 export async function getFiles() {

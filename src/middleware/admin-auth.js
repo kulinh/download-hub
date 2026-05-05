@@ -117,7 +117,9 @@ export function requireAdminSession(req, res, next) {
   const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
   if (!SAFE_METHODS.includes(req.method)) {
     const headerToken = req.headers['x-csrf-token'] || '';
-    const bodyToken = req.body?.['_csrf'] || '';
+    // Body fallback only works for JSON/urlencoded — binary routes (express.raw) must
+    // always send X-CSRF-Token header. Never read _csrf from a raw Buffer body.
+    const bodyToken = (!Buffer.isBuffer(req.body) && req.body?.['_csrf']) ? req.body['_csrf'] : '';
     if (headerToken !== csrfToken && bodyToken !== csrfToken) {
       return res.status(403).json({ ok: false, error: 'csrf_token_invalid' });
     }

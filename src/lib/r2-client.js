@@ -76,15 +76,20 @@ function canonicalHeaders(headers) {
 
 /**
  * Generate a presigned URL (GET or PUT) using manual AWS Signature V4 Query.
+ * For PUT requests, pass contentType to enforce content-type matching at upload time.
  */
-function buildPresignedUrl({ method, key, ttlSeconds = 120, extraHeaders = {}, responseDisposition }) {
+function buildPresignedUrl({ method, key, ttlSeconds = 120, contentType, responseDisposition }) {
   const region = 'auto';
   const service = 's3';
   const now = new Date();
   const amzDate = isoDate(now);
   const ds = dateStamp(now);
   const host = `${r2AccountId()}.r2.cloudflarestorage.com`;
-  const path = `/${r2BucketName()}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
+  const urlPath = `/${r2BucketName()}/${encodeURIComponent(key).replace(/%2F/g, '/')}`;
+
+  // For PUT uploads, sign content-type so the presigned URL is bound to the declared MIME type.
+  // GET downloads sign host only (no body, content-type not applicable).
+  const signedHeadersList = (method === 'PUT' && contentType) ? 'content-type;host' : 'host';
 
   const credentialScope = `${ds}/${region}/${service}/aws4_request`;
   const credential = `${r2AccessKeyId()}/${credentialScope}`;
@@ -94,7 +99,7 @@ function buildPresignedUrl({ method, key, ttlSeconds = 120, extraHeaders = {}, r
     'X-Amz-Credential': credential,
     'X-Amz-Date': amzDate,
     'X-Amz-Expires': String(ttlSeconds),
-    'X-Amz-SignedHeaders': 'host'
+    'X-Amz-SignedHeaders': signedHeadersList
   });
 
   if (responseDisposition) {
@@ -107,12 +112,17 @@ function buildPresignedUrl({ method, key, ttlSeconds = 120, extraHeaders = {}, r
     .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
     .join('&');
 
+  // Canonical headers must be sorted alphabetically and match signedHeadersList
+  const canonicalHeaderStr = (method === 'PUT' && contentType)
+    ? `content-type:${contentType}\nhost:${host}\n`
+    : `host:${host}\n`;
+
   const canonicalReq = [
     method,
-    path,
+    urlPath,
     sortedQuery,
-    `host:${host}\n`,
-    'host',
+    canonicalHeaderStr,
+    signedHeadersList,
     'UNSIGNED-PAYLOAD'
   ].join('\n');
 
@@ -126,7 +136,7 @@ function buildPresignedUrl({ method, key, ttlSeconds = 120, extraHeaders = {}, r
   const signingKey = getSigningKey(r2Secret(), ds, region, service);
   const signature = crypto.createHmac('sha256', signingKey).update(stringToSign).digest('hex');
 
-  return `https://${host}${path}?${sortedQuery}&X-Amz-Signature=${signature}`;
+  return `https://${host}${urlPath}?${sortedQuery}&X-Amz-Signature=${signature}`;
 }
 
 export function getPresignedUploadUrl(key, contentType = 'application/octet-stream', ttlSeconds) {
@@ -134,6 +144,7 @@ export function getPresignedUploadUrl(key, contentType = 'application/octet-stre
   return buildPresignedUrl({
     method: 'PUT',
     key,
+    contentType,
     ttlSeconds: ttlSeconds || config.r2PresignedTtlSeconds || 120
   });
 }

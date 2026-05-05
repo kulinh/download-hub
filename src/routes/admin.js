@@ -67,20 +67,16 @@ import { simpleRateLimit } from '../middleware/rate-limit.js';
 
 const router = express.Router();
 
+// Accept all content-types for binary upload routes — restricting to octet-stream would
+// silently drop bodies for APK/ZIP/EXE/etc., producing zero-byte files with no error.
 const localUploadParser = express.raw({
   limit: config.localUploadMaxBytes,
-  type: (req) => {
-    const ct = (req.headers['content-type'] || '').toLowerCase();
-    return ct.startsWith('application/octet-stream') || ct.startsWith('application/x-binary') || ct === '';
-  }
+  type: () => true
 });
 
 const r2UploadParser = express.raw({
   limit: config.localUploadMaxBytes,
-  type: (req) => {
-    const ct = (req.headers['content-type'] || '').toLowerCase();
-    return ct.startsWith('application/octet-stream') || ct.startsWith('application/x-binary') || ct === '';
-  }
+  type: () => true
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -450,8 +446,11 @@ router.post('/api/admin/r2/upload-direct', requireAdminSession, r2UploadParser, 
     if (!r2Key) return res.status(400).json({ ok: false, error: 'r2key_required' });
 
     const contentType = req.headers['content-type'] || 'application/octet-stream';
-    const contentLength = Number.parseInt(req.headers['content-length'] || '0', 10) || 0;
-    if (contentLength > config.localUploadMaxBytes) {
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ ok: false, error: 'empty_body' });
+    }
+    if (req.body.length > config.localUploadMaxBytes) {
       return res.status(413).json({ ok: false, error: 'payload_too_large' });
     }
 
@@ -519,6 +518,7 @@ router.post('/api/admin/r2/upload-confirm', requireAdminSession, enforceJsonCont
     }
 
     await writeRawFilesIndex(catalog);
+    await reloadFiles();
     res.json({ ok: true, r2Key });
   } catch (err) {
     next(err);
@@ -580,8 +580,10 @@ router.post('/api/admin/local/upload', requireAdminSession, localUploadParser, a
 
     await fs.mkdir(path.dirname(absolutePath), { recursive: true });
 
-    const contentLength = Number.parseInt(req.headers['content-length'] || '0', 10) || 0;
-    if (contentLength > config.localUploadMaxBytes) {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ ok: false, error: 'empty_body' });
+    }
+    if (req.body.length > config.localUploadMaxBytes) {
       return res.status(413).json({ ok: false, error: 'payload_too_large' });
     }
 
@@ -658,6 +660,7 @@ router.post('/api/admin/local/confirm', requireAdminSession, enforceJsonContentT
     }
 
     await writeRawFilesIndex(catalog);
+    await reloadFiles();
     res.json({ ok: true, relativePath: safeRelative });
   } catch (err) {
     next(err);
