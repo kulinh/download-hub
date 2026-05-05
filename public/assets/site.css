@@ -462,7 +462,7 @@ section h2 { margin-bottom: 16px; font-size: 1.2rem; }
   text-align: left;
   padding: 9px 12px;
   border-bottom: 1px solid var(--border);
-  vertical-align: top;
+  vertical-align: middle;
 }
 .admin-table th {
   color: var(--text);
@@ -614,10 +614,11 @@ section h2 { margin-bottom: 16px; font-size: 1.2rem; }
 /* R2 Table specifics */
 .r2-table .r2-key-cell {
   max-width: 260px;
-  display: block;
+  display: inline-block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  vertical-align: middle;
 }
 .r2-table .num-cell { text-align: right; white-space: nowrap; }
 .r2-table .date-cell { white-space: nowrap; }
