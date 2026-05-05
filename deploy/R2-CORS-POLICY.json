@@ -1,11 +1,14 @@
-[
-  {
-    "AllowedOrigins": [
-      "https://downloads.example.com"
-    ],
-    "AllowedMethods": ["PUT", "HEAD"],
-    "AllowedHeaders": ["content-type", "x-amz-*"],
-    "ExposeHeaders": ["etag"],
-    "MaxAgeSeconds": 3600
-  }
-]
+  {                                                                                                                                                                                                                                          
+    "CORSRules": [
+      {                                                                                                                                                                                                                                      
+        "AllowedOrigins": [
+          "https://download.888vn.net",
+          "https://888vn.net"                                                                                                                                                                                                                
+        ],                                                                                                                                                                                                                                   
+        "AllowedMethods": ["GET", "PUT", "HEAD"],                                                                                                                                                                                            
+        "AllowedHeaders": ["content-type", "x-amz-*"],                                                                                                                                                                                       
+        "ExposeHeaders": ["ETag"],
+        "MaxAgeSeconds": 3600                                                                                                                                                                                                                
+      }                                                                                                                                                                                                                                      
+    ]                                                                                                                                                                                                                                        
+  } 

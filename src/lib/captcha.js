@@ -105,6 +105,14 @@ export async function verifyHcaptchaToken(req) {
   });
 
   const result = await response.json();
+  console.error('[hcaptcha verify]', {
+    success: result?.success,
+    hostname: result?.hostname,
+    errorCodes: result?.['error-codes'] || [],
+    expectedHostname: config.hcaptcha.expectedHostname,
+    hasToken: Boolean(token),
+    siteKey: config.hcaptcha.siteKey
+    });
   const success = Boolean(result.success)
     && (!result.hostname || result.hostname === config.hcaptcha.expectedHostname);
 
