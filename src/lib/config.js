@@ -101,6 +101,12 @@ export function buildConfig(env = process.env) {
       secretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
       bucket: env.R2_BUCKET || ''
     },
+    dropbox: {
+      enabled: toBool(env.DROPBOX_ENABLED, false),
+      appKey: env.DROPBOX_APP_KEY || '',
+      appSecret: env.DROPBOX_APP_SECRET || '',
+      refreshToken: env.DROPBOX_REFRESH_TOKEN || ''
+    },
     localUploadMaxBytes: toBytes(env.LOCAL_UPLOAD_MAX_BYTES, 512 * 1024 * 1024),
     useXAccelRedirect: toBool(env.USE_X_ACCEL_REDIRECT, false),
     xAccelInternalPrefix: env.X_ACCEL_INTERNAL_PREFIX || '/protected-downloads',
@@ -112,6 +118,11 @@ export function buildConfig(env = process.env) {
   };
 
   cfg.captchaProvider = detectCaptchaProvider(cfg);
+
+  cfg.dropbox = {
+    ...cfg.dropbox,
+    enabled: cfg.dropbox.enabled && Boolean(cfg.dropbox.appKey && cfg.dropbox.appSecret && cfg.dropbox.refreshToken)
+  };
 
   const hasR2Creds = cfg.r2.accountId && cfg.r2.accessKeyId && cfg.r2.secretAccessKey && cfg.r2.bucket;
   // Harden enabled flag: only true if creds present

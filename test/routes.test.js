@@ -8,6 +8,7 @@ import siteRouter from '../src/routes/site.js';
 import { reloadConfig } from '../src/lib/config.js';
 import { issueDownloadToken } from '../src/lib/download-token.js';
 import * as r2Storage from '../src/lib/r2-storage.js';
+import * as dropboxClient from '../src/lib/dropbox-client.js';
 
 function makeApp() {
   const app = express();
@@ -150,6 +151,85 @@ describe('routes', () => {
     expect(res.status).toBe(200);
     expect(res.text).toBe('sync-ok');
     expect(streamSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('streams a dropbox file when dropbox is configured', async () => {
+    await fs.writeFile(indexPath, `${JSON.stringify([{
+      id: 'dropbox-file',
+      slug: 'dropbox-file',
+      title: { vi: 'Dropbox', en: 'Dropbox' },
+      summary: { vi: '', en: '' },
+      description: { vi: '', en: '' },
+      version: '1.0.0',
+      platform: 'Generic',
+      language: ['vi', 'en'],
+      sizeBytes: 512,
+      checksumSha256: '3'.repeat(64),
+      mimeType: 'application/zip',
+      storage: { provider: 'dropbox', dropboxPath: '/apps/dl888/test.zip', downloadName: 'test.zip' },
+      published: true,
+      featured: false,
+      demo: false,
+      tags: [],
+      updatedAt: '2026-05-06T00:00:00Z'
+    }], null, 2)}\n`, 'utf8');
+
+    vi.spyOn(dropboxClient, 'isDropboxConfigured').mockReturnValue(true);
+    const streamSpy = vi.spyOn(dropboxClient, 'streamFromDropbox').mockImplementation(async (_file, res) => {
+      res.status(200).set('Content-Type', 'application/zip').end('dropbox-ok');
+    });
+
+    const token = await issueDownloadToken(
+      { slug: 'dropbox-file', storage: { provider: 'dropbox', dropboxPath: '/apps/dl888/test.zip' } },
+      { ip: '1.2.3.4', get: () => 'test-agent' }
+    );
+
+    const app = makeApp();
+    const res = await request(app)
+      .get(`/files/dropbox-file?token=${encodeURIComponent(token)}`)
+      .set('User-Agent', 'test-agent')
+      .set('X-Test-IP', '1.2.3.4');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('dropbox-ok');
+    expect(streamSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns 503 when dropbox file requested but dropbox not configured', async () => {
+    await fs.writeFile(indexPath, `${JSON.stringify([{
+      id: 'dropbox-missing',
+      slug: 'dropbox-missing',
+      title: { vi: 'Dropbox', en: 'Dropbox' },
+      summary: { vi: '', en: '' },
+      description: { vi: '', en: '' },
+      version: '1.0.0',
+      platform: 'Generic',
+      language: ['vi', 'en'],
+      sizeBytes: 512,
+      checksumSha256: '4'.repeat(64),
+      mimeType: 'application/zip',
+      storage: { provider: 'dropbox', dropboxPath: '/apps/dl888/test.zip', downloadName: 'test.zip' },
+      published: true,
+      featured: false,
+      demo: false,
+      tags: [],
+      updatedAt: '2026-05-06T00:00:00Z'
+    }], null, 2)}\n`, 'utf8');
+
+    vi.spyOn(dropboxClient, 'isDropboxConfigured').mockReturnValue(false);
+
+    const token = await issueDownloadToken(
+      { slug: 'dropbox-missing', storage: { provider: 'dropbox', dropboxPath: '/apps/dl888/test.zip' } },
+      { ip: '1.2.3.4', get: () => 'test-agent' }
+    );
+
+    const app = makeApp();
+    const res = await request(app)
+      .get(`/files/dropbox-missing?token=${encodeURIComponent(token)}`)
+      .set('User-Agent', 'test-agent')
+      .set('X-Test-IP', '1.2.3.4');
+
+    expect(res.status).toBe(503);
   });
 
   it('does not false-fallthrough malformed R2 entries to local Invalid storage path', async () => {

@@ -53,6 +53,7 @@ import {
 } from '../lib/file-store.js';
 import { isR2Configured, listR2Objects, deleteR2Object, getPresignedDownloadUrl } from '../lib/r2-client.js';
 import { getPresignedUploadUrl as getSdkPresignedUploadUrl, isR2Enabled, shouldUseLocalStorage, uploadBufferToR2 } from '../lib/r2-storage.js';
+import { isDropboxConfigured, getDropboxMetadata } from '../lib/dropbox-client.js';
 import {
   clearAdminSession,
   issueAdminSession,
@@ -762,6 +763,30 @@ router.post('/api/admin/reload', requireAdminSessionOrToken, enforceJsonContentT
   try {
     const files = await reloadFiles();
     res.json({ ok: true, count: files.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/api/admin/dropbox/status', requireAdminSession, (req, res) => {
+  res.json({
+    ok: true,
+    configured: isDropboxConfigured(),
+    enabled: Boolean(config.dropbox?.enabled)
+  });
+});
+
+router.post('/api/admin/dropbox/verify-path', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
+  try {
+    if (!isDropboxConfigured()) {
+      return res.status(503).json({ ok: false, error: 'dropbox_not_configured' });
+    }
+    const { dropboxPath } = req.body;
+    if (!dropboxPath || typeof dropboxPath !== 'string') {
+      return res.status(400).json({ ok: false, error: 'dropboxPath is required' });
+    }
+    const meta = await getDropboxMetadata(dropboxPath.trim());
+    res.json({ ok: true, name: meta.name, size: meta.size, tag: meta['.tag'] });
   } catch (err) {
     next(err);
   }

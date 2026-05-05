@@ -10,10 +10,15 @@ export function normalizeObjectKey(value) {
 
 export function getStorageProvider(fileItem) {
   const provider = fileItem?.storage?.provider || fileItem?.storageProvider;
-  if (provider === 'r2' || provider === 'local') return provider;
+  if (provider === 'r2' || provider === 'local' || provider === 'dropbox') return provider;
+  if (fileItem?.storage?.dropboxPath) return 'dropbox';
   if (fileItem?.storage?.objectKey || fileItem?.storage?.r2Key || fileItem?.r2?.key) return 'r2';
   if (fileItem?.storage?.relativePath) return 'local';
   return 'local';
+}
+
+export function getDropboxPath(fileItem) {
+  return fileItem?.storage?.dropboxPath || '';
 }
 
 export function getStorageObjectKey(fileItem) {
@@ -41,55 +46,43 @@ export function getStorageDownloadName(fileItem) {
 export function normalizeFileEntry(fileItem) {
   if (!fileItem || typeof fileItem !== 'object') return fileItem;
 
-  const provider = getStorageProvider(fileItem) === 'r2' ? 'r2' : 'local';
+  const provider = getStorageProvider(fileItem);
   const objectKey = provider === 'r2'
     ? normalizeObjectKey(fileItem?.storage?.objectKey || fileItem?.storage?.r2Key || fileItem?.r2?.key || '')
     : '';
   const relativePath = provider === 'local' ? getLocalRelativePath(fileItem) : '';
-  const downloadName = getStorageDownloadName({ ...fileItem, storage: { ...(fileItem.storage || {}), objectKey, r2Key: objectKey } });
+  const dropboxPath = provider === 'dropbox' ? (fileItem?.storage?.dropboxPath || '') : '';
+  const downloadName = fileItem?.storage?.downloadName
+    || fileItem?.r2?.downloadName
+    || (objectKey ? path.basename(objectKey) : '')
+    || (relativePath ? path.basename(relativePath) : '')
+    || (dropboxPath ? path.basename(dropboxPath) : '')
+    || 'download.bin';
 
-  let storage = {
-    ...(fileItem.storage || {}),
-    provider,
-    ...(downloadName ? { downloadName } : {})
-  };
+  let storage = { ...(fileItem.storage || {}), provider, downloadName };
 
   if (provider === 'r2' && objectKey) {
-    storage = {
-      ...storage,
-      objectKey,
-      r2Key: objectKey
-    };
+    storage = { ...storage, objectKey, r2Key: objectKey };
     delete storage.relativePath;
-  } else {
-    storage = {
-      ...storage,
-      ...(relativePath ? { relativePath } : {})
-    };
+    delete storage.dropboxPath;
+  } else if (provider === 'dropbox') {
+    storage = { ...storage, dropboxPath };
     delete storage.objectKey;
     delete storage.r2Key;
+    delete storage.relativePath;
+  } else {
+    storage = { ...storage, ...(relativePath ? { relativePath } : {}) };
+    delete storage.objectKey;
+    delete storage.r2Key;
+    delete storage.dropboxPath;
   }
 
-  const normalized = {
-    ...fileItem,
-    storage,
-    storageProvider: provider
-  };
+  const normalized = { ...fileItem, storage, storageProvider: provider };
 
   if (provider === 'r2' && objectKey) {
-    normalized.r2 = {
-      ...(fileItem.r2 || {}),
-      key: objectKey,
-      downloadName
-    };
-  } else if (normalized.r2 && !objectKey) {
-    delete normalized.r2;
-  }
-
-  if (provider === 'local') {
-    normalized.storageProvider = 'local';
+    normalized.r2 = { ...(fileItem.r2 || {}), key: objectKey, downloadName };
   } else {
-    normalized.storageProvider = 'r2';
+    delete normalized.r2;
   }
 
   return normalized;

@@ -13,6 +13,7 @@ import { buildBaseUrl, formatBytes, getServerName, pickLocale, publicError } fro
 import { simpleRateLimit } from '../middleware/rate-limit.js';
 import { enforceFormContentType } from '../middleware/security.js';
 import { isR2Enabled } from '../lib/r2-storage.js';
+import { isDropboxConfigured } from '../lib/dropbox-client.js';
 
 const router = express.Router();
 
@@ -125,6 +126,15 @@ router.get('/files/:slug', async (req, res, next) => {
     }
 
     const provider = getStorageProvider(fileItem);
+
+    if (provider === 'dropbox' && !isDropboxConfigured()) {
+      throw publicError(
+        'Dịch vụ Dropbox chưa sẵn sàng.',
+        'Dropbox storage not available.',
+        locale,
+        503
+      );
+    }
 
     if (provider === 'r2' && (!isR2Enabled() || !getStorageObjectKey(fileItem))) {
       throw publicError(

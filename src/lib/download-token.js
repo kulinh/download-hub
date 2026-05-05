@@ -2,8 +2,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
+import { isDropboxConfigured, streamFromDropbox } from './dropbox-client.js';
 import { isR2Enabled, streamFromR2 } from './r2-storage.js';
-import { getLocalRelativePath, getStorageDownloadName, getStorageObjectKey } from './storage-metadata.js';
+import { getDropboxPath, getLocalRelativePath, getStorageDownloadName, getStorageObjectKey, getStorageProvider } from './storage-metadata.js';
 import { createHmacToken, verifyHmacToken } from './utils.js';
 
 function hmacDigest(value) {
@@ -34,6 +35,12 @@ export function verifyDownloadToken(token, req) {
 }
 
 export async function streamDownload(fileItem, req, res, absolutePath) {
+  const provider = getStorageProvider(fileItem);
+
+  if (provider === 'dropbox') {
+    return streamFromDropbox(fileItem, res);
+  }
+
   if (isR2Enabled() && getStorageObjectKey(fileItem)) {
     return streamFromR2(fileItem, res);
   }
