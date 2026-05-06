@@ -138,6 +138,9 @@ export function buildConfig(env = process.env) {
     if (!cfg.downloadTokenSecret || isPlaceholderSecret(cfg.downloadTokenSecret)) {
       throw new Error('DOWNLOAD_TOKEN_SECRET is required and must not be a placeholder in production');
     }
+    if (!cfg.admin.sessionSecret || isPlaceholderSecret(cfg.admin.sessionSecret)) {
+      throw new Error('ADMIN_SESSION_SECRET is required and must not be a placeholder in production');
+    }
     if (!cfg.turnstile.enabled || !cfg.turnstile.siteKey || !cfg.turnstile.secretKey) {
       throw new Error('Cloudflare Turnstile (TURNSTILE_ENABLED, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY) must be configured in production');
     }

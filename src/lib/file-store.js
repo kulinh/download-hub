@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { config } from './config.js';
 import { normalizeFileEntries, normalizeObjectKey } from './storage-metadata.js';
@@ -145,8 +147,7 @@ function slugify(value) {
 
 export async function sha256File(absolutePath) {
   const hash = crypto.createHash('sha256');
-  const buffer = await fs.readFile(absolutePath);
-  hash.update(buffer);
+  await pipeline(createReadStream(absolutePath), hash);
   return hash.digest('hex');
 }
 

@@ -29,9 +29,6 @@ const LEGACY_ADMIN_COOKIE_OPTIONS = {
   path: '/admin'
 };
 
-const CSRF_HEADER = 'x-admin-csrf';
-const CSRF_PARAM = '_csrf';
-
 // ── Session issuance / clearing ──────────────────────────────────────────────
 
 export function issueAdminSession(res) {

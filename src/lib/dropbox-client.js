@@ -8,6 +8,7 @@ const METADATA_URL = 'https://api.dropboxapi.com/2/files/get_metadata';
 // In-process token cache — one access token per process lifetime
 let _cachedToken = null;
 let _tokenExpiresAt = 0;
+let _refreshInflight = null;
 
 export function isDropboxConfigured() {
   return Boolean(
@@ -22,31 +23,36 @@ export async function getAccessToken() {
   if (_cachedToken && Date.now() < _tokenExpiresAt - 60_000) {
     return _cachedToken;
   }
+  if (_refreshInflight) return _refreshInflight;
 
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: config.dropbox.refreshToken,
-    client_id: config.dropbox.appKey,
-    client_secret: config.dropbox.appSecret
-  });
+  _refreshInflight = (async () => {
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: config.dropbox.refreshToken,
+      client_id: config.dropbox.appKey,
+      client_secret: config.dropbox.appSecret
+    });
 
-  const resp = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-    signal: AbortSignal.timeout(10_000)
-  });
+    const resp = await fetch(TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+      signal: AbortSignal.timeout(10_000)
+    });
 
-  if (!resp.ok) {
-    const text = await resp.text().catch(() => '');
-    throw new Error(`dropbox_token_refresh_failed: ${resp.status} ${text.slice(0, 200)}`);
-  }
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`dropbox_token_refresh_failed: ${resp.status} ${text.slice(0, 200)}`);
+    }
 
-  const data = await resp.json();
-  _cachedToken = data.access_token;
-  // expires_in is in seconds; Dropbox tokens last ~4 hours (14400s)
-  _tokenExpiresAt = Date.now() + ((data.expires_in || 14400) * 1000);
-  return _cachedToken;
+    const data = await resp.json();
+    _cachedToken = data.access_token;
+    // expires_in is in seconds; Dropbox tokens last ~4 hours (14400s)
+    _tokenExpiresAt = Date.now() + ((data.expires_in || 14400) * 1000);
+    return _cachedToken;
+  })().finally(() => { _refreshInflight = null; });
+
+  return _refreshInflight;
 }
 
 export async function getDropboxMetadata(dropboxPath) {
@@ -147,16 +153,33 @@ export async function streamFromDropbox(fileItem, res) {
 
   // Pipe Web ReadableStream (fetch body) → Express response
   const reader = downloadResp.body.getReader();
+  let aborted = false;
   return new Promise((resolve, reject) => {
-    res.on('error', reject);
-    res.on('close', resolve);
+    res.on('error', (err) => {
+      aborted = true;
+      reader.cancel().catch(() => {});
+      reject(err);
+    });
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        aborted = true;
+        reader.cancel().catch(() => {});
+      }
+      resolve();
+    });
 
     function pump() {
+      if (aborted) return;
       reader.read().then(({ done, value }) => {
+        if (aborted) return;
         if (done) { res.end(); resolve(); return; }
         const ok = res.write(value);
         if (ok) { pump(); } else { res.once('drain', pump); }
-      }).catch(reject);
+      }).catch((err) => {
+        aborted = true;
+        reader.cancel().catch(() => {});
+        reject(err);
+      });
     }
 
     pump();
@@ -177,4 +200,5 @@ function buildContentDisposition(filename) {
 export function _resetTokenCache() {
   _cachedToken = null;
   _tokenExpiresAt = 0;
+  _refreshInflight = null;
 }

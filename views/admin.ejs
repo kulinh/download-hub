@@ -95,6 +95,7 @@
     nonce="<%= cspNonce %>"
     data-locale="<%= locale %>"
     data-r2-enabled="<%= r2Enabled %>"
+    data-csrf="<%= adminCsrfToken || '' %>"
     data-msg-loading="<%= locale === 'vi' ? 'Đang tải dữ liệu…' : 'Loading data…' %>"
     data-msg-load-success="<%= locale === 'vi' ? 'Tải dữ liệu admin thành công.' : 'Admin data loaded.' %>"
     data-msg-syncing="<%= locale === 'vi' ? 'Đang quét disk và cập nhật files.json…' : 'Scanning disk and updating files.json…' %>"
@@ -122,6 +123,6 @@
     data-status-mismatch="<%= locale === 'vi' ? 'Lệch metadata' : 'Metadata mismatch' %>"
     data-status-missing="<%= locale === 'vi' ? 'Thiếu file trên disk' : 'Missing on disk' %>"
   ></script>
-  <script src="/assets/theme.js"></script>
+  <script src="/assets/theme.js" nonce="<%= cspNonce %>"></script>
 </body>
 </html>

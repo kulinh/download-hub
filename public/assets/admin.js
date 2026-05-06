@@ -9,6 +9,17 @@
   const script = document.currentScript;
   const locale = script.dataset.locale || 'en';
   const r2Enabled = script.dataset.r2Enabled === 'true';
+  const csrf = script.dataset.csrf || '';
+
+  function esc(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
   const msg = {
     loading: script.dataset.msgLoading || 'Loading…',
     loadSuccess: script.dataset.msgLoadSuccess || 'Loaded.',
@@ -63,11 +74,15 @@
   }
 
   async function apiPost(path, body = {}) {
+    const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+    const payload = { ...body };
+    if (csrf) payload._csrf = csrf;
     const res = await fetch(path, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(body)
+      headers,
+      body: new URLSearchParams(payload)
     });
     if (res.status === 401) {
       window.location.href = '/admin/login';
@@ -86,9 +101,9 @@
       [labels.indexPath, data.filesIndexPath],
       [labels.totalFiles, data.files?.length ?? 0],
       [labels.extraFiles, data.extraDiskFiles?.length ?? 0]
-    ];
+    ].filter(([, v]) => v !== undefined && v !== null);
     el.innerHTML = entries
-      .map(([k, v]) => `<div class="kv-row"><dt>${k}</dt><dd>${v}</dd></div>`)
+      .map(([k, v]) => `<div class="kv-row"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`)
       .join('');
   }
 
@@ -101,13 +116,13 @@
     }
     const rows = extraDiskFiles.map((f) =>
       `<tr>
-        <td>${f.relativePath}</td>
-        <td>${f.sizeBytes ?? '—'}</td>
-        <td title="${f.checksumSha256 || ''}">${f.checksumSha256 ? f.checksumSha256.slice(0, 12) + '…' : '—'}</td>
+        <td>${esc(f.relativePath)}</td>
+        <td>${esc(f.sizeBytes ?? '—')}</td>
+        <td title="${esc(f.checksumSha256 || '')}">${f.checksumSha256 ? esc(f.checksumSha256.slice(0, 12)) + '…' : '—'}</td>
       </tr>`
     ).join('');
     el.innerHTML = `<table class="admin-table"><thead><tr>
-      <th>${cols.relativePath}</th><th>${cols.diskSize}</th><th>${cols.diskSha}</th>
+      <th>${esc(cols.relativePath)}</th><th>${esc(cols.diskSize)}</th><th>${esc(cols.diskSha)}</th>
     </tr></thead><tbody>${rows}</tbody></table>`;
   }
 
@@ -134,27 +149,27 @@
       }
 
       return `<tr>
-        <td>${f.slug}</td>
-        <td>${f.storage?.relativePath || f.storage?.r2Key || '—'}</td>
+        <td>${esc(f.slug)}</td>
+        <td>${esc(f.storage?.relativePath || f.storage?.r2Key || '—')}</td>
         <td>${f.published ? '✓' : '—'}</td>
-        <td>${f.sizeBytes ?? '—'}</td>
-        <td>${f.disk?.sizeBytes ?? '—'}</td>
-        <td title="${f.checksumSha256 || ''}">${f.checksumSha256 ? f.checksumSha256.slice(0, 10) + '…' : '—'}</td>
-        <td title="${f.disk?.checksumSha256 || ''}">${f.disk?.checksumSha256 ? f.disk.checksumSha256.slice(0, 10) + '…' : '—'}</td>
-        <td class="${statusClass}">${statusLabel}</td>
+        <td>${esc(f.sizeBytes ?? '—')}</td>
+        <td>${esc(f.disk?.sizeBytes ?? '—')}</td>
+        <td title="${esc(f.checksumSha256 || '')}">${f.checksumSha256 ? esc(f.checksumSha256.slice(0, 10)) + '…' : '—'}</td>
+        <td title="${esc(f.disk?.checksumSha256 || '')}">${f.disk?.checksumSha256 ? esc(f.disk.checksumSha256.slice(0, 10)) + '…' : '—'}</td>
+        <td class="${esc(statusClass)}">${esc(statusLabel)}</td>
       </tr>`;
     }).join('');
 
     el.innerHTML = `<table class="admin-table">
       <thead><tr>
-        <th>${cols.slug}</th>
-        <th>${cols.relativePath}</th>
-        <th>${cols.published}</th>
-        <th>${cols.catalogSize}</th>
-        <th>${cols.diskSize}</th>
-        <th>${cols.catalogSha}</th>
-        <th>${cols.diskSha}</th>
-        <th>${cols.status}</th>
+        <th>${esc(cols.slug)}</th>
+        <th>${esc(cols.relativePath)}</th>
+        <th>${esc(cols.published)}</th>
+        <th>${esc(cols.catalogSize)}</th>
+        <th>${esc(cols.diskSize)}</th>
+        <th>${esc(cols.catalogSha)}</th>
+        <th>${esc(cols.diskSha)}</th>
+        <th>${esc(cols.status)}</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;

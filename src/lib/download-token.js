@@ -5,7 +5,7 @@ import { config } from './config.js';
 import { isDropboxConfigured, streamFromDropbox } from './dropbox-client.js';
 import { isR2Enabled, streamFromR2 } from './r2-storage.js';
 import { getDropboxPath, getLocalRelativePath, getStorageDownloadName, getStorageObjectKey, getStorageProvider } from './storage-metadata.js';
-import { createHmacToken, verifyHmacToken } from './utils.js';
+import { createHmacToken, safeEqual, verifyHmacToken } from './utils.js';
 
 function hmacDigest(value) {
   return crypto.createHmac('sha256', config.downloadTokenSecret)
@@ -29,8 +29,8 @@ export function verifyDownloadToken(token, req) {
   const payload = verifyHmacToken(token, config.downloadTokenSecret);
   if (!payload) return { valid: false, reason: 'invalid_signature' };
   if (!payload.exp || Date.now() > payload.exp) return { valid: false, reason: 'expired' };
-  if (payload.ipHash !== hmacDigest(req.ip || '')) return { valid: false, reason: 'ip_mismatch' };
-  if (payload.uaHash !== hmacDigest(req.get('user-agent') || '')) return { valid: false, reason: 'ua_mismatch' };
+  if (!safeEqual(payload.ipHash || '', hmacDigest(req.ip || ''))) return { valid: false, reason: 'ip_mismatch' };
+  if (!safeEqual(payload.uaHash || '', hmacDigest(req.get('user-agent') || ''))) return { valid: false, reason: 'ua_mismatch' };
   return { valid: true, payload };
 }
 
