@@ -1,13 +1,13 @@
 # download-hub
 
-> **Deploy-ready demo scaffold** cho hệ thống download hub chạy bằng **Docker**, quản trị qua **Portainer**, dùng **CloudPanel chỉ làm reverse proxy**, lưu file trên **Cloudflare R2**, bảo vệ public download bằng **Cloudflare Turnstile**, và bảo vệ admin bằng **username + password + hCaptcha + session cookie**.
+> Download hub chạy trực tiếp bằng **Node.js + PM2** sau **CloudPanel Nginx reverse proxy**, lưu file trên **Cloudflare R2**, bảo vệ public download bằng **Cloudflare Turnstile**, và bảo vệ admin bằng **username + password + hCaptcha + session cookie**.
 
 ## Canonical Architecture (R2 Primary)
 
 ```text
 Internet
   -> CloudPanel Nginx reverse proxy (HTTPS)
-  -> Docker container app (127.0.0.1:3000)
+  -> Node.js app via PM2 (127.0.0.1:3000)
   -> Cloudflare R2 (object storage)
 ```
 
@@ -19,12 +19,12 @@ Internet
 
 ## Stack
 - Node.js 20+
+- PM2 (process manager)
 - Express 5 + EJS
 - Helmet + CSP nonce
 - Cloudflare Turnstile (public)
 - hCaptcha (admin login)
 - Cloudflare R2 via S3-compatible API
-- Docker / Docker Compose / Portainer
 
 ## Main features
 - Public bilingual VI/EN download catalog
@@ -68,30 +68,33 @@ src/
 views/
 public/
 deploy/
-Dockerfile
-docker-compose.yml
+  ecosystem.config.cjs
+  nginx-download-hub.conf
 ```
 
 ## Production deployment (canonical)
-Use this path only:
-- **Runtime**: Docker container
-- **Orchestration**: Portainer stack or `docker compose`
-- **Reverse proxy**: CloudPanel custom Nginx vhost
+- **Runtime**: Node.js (>=20) launched by PM2
+- **Process manager**: PM2 (see `deploy/ecosystem.config.cjs`)
+- **Reverse proxy**: CloudPanel custom Nginx vhost (`deploy/nginx-download-hub.conf`)
 - **Storage**: Cloudflare R2
 
-See:
-- `deploy/DOCKER-DEPLOY.md`
-- `deploy/README.md`
-- `deploy/OPERATOR-CHECKLIST.md`
-- `deploy/PORTAINER-STACK.md`
-- `deploy/portainer-stack.yml`
-- `deploy/PORTAINER-ENV-QUICKREF.md`
-- `deploy/PORTAINER-UI-CHECKLIST.md`
-- `deploy/portainer-stack.yml`
-- `deploy/portainer-stack.portainer-friendly.yml`
-- `deploy/MIGRATION-CHECKLIST.md`
-- `deploy/MIGRATION-SCRIPTS.md`
-- `deploy/RELEASE-HANDOFF.md`
+```bash
+git clone <repo> /opt/download-hub
+cd /opt/download-hub
+cp .env.example .env       # fill production values
+npm ci --omit=dev
+npm run check              # validates env + config
+pm2 start deploy/ecosystem.config.cjs --env production
+pm2 save
+```
+
+To update:
+```bash
+cd /opt/download-hub
+git pull
+npm ci --omit=dev
+pm2 restart download-hub
+```
 
 ## Required production env
 Minimum required values:
@@ -123,25 +126,8 @@ R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=your-r2-bucket-name
 ```
 
-## Docker quick start
-```bash
-cp .env.example .env
-# fill production-like values or dev values
-
-docker compose up -d --build
-curl http://127.0.0.1:3000/health
-```
-
-## Portainer quick start
-1. Open **Stacks** in Portainer.
-2. Create/import stack using `docker-compose.yml`.
-3. Supply environment variables.
-4. Deploy.
-5. Point CloudPanel reverse proxy to `127.0.0.1:3000`.
-
 ## CloudPanel reverse proxy
-CloudPanel is **not** the app runtime manager in the canonical model.
-It only terminates HTTPS and proxies traffic to the container.
+CloudPanel terminates HTTPS and proxies traffic to the local Node.js process on `127.0.0.1:3000`.
 
 Use the nginx sample in:
 - `deploy/nginx-download-hub.conf`
@@ -153,12 +139,7 @@ Use the nginx sample in:
 4. Enter `/admin/r2`
 5. Upload to R2, sync object metadata, review draft records, publish entries
 
-## Demo scaffold note
-This repository may still include demo/placeholder data in `src/data/files.json` for local/dev purposes. Treat them as scaffold data, not production content.
-
-## Local development / compatibility notes
-### Local dev
-You can still run without Docker for development:
+## Local development
 ```bash
 cp .env.example .env
 npm install
@@ -166,11 +147,5 @@ npm run check
 npm run dev
 ```
 
-### Compatibility Appendix (Local Disk Mode)
-The following are **legacy/compatibility paths**, not the primary production story:
-- PM2-managed app runtime
-- local disk as primary storage
-- X-Accel-Redirect as primary production delivery mode
-- bearer-token-only admin workflow
-
-Keep them only for migration/backward compatibility, not as the default deployment recommendation.
+## Demo scaffold note
+This repository may still include demo/placeholder data in `src/data/files.json` for local/dev purposes. Treat them as scaffold data, not production content.

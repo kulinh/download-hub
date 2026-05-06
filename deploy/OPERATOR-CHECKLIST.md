@@ -2,7 +2,7 @@
 
 ## Canonical Mode (R2 Storage)
 Use this checklist for the **primary deployment model**:
-- Docker / Docker Compose / Portainer
+- Node.js + PM2 on the host
 - CloudPanel only as reverse proxy
 - Cloudflare R2 as primary storage
 - Turnstile for public flow
@@ -14,11 +14,11 @@ Use this checklist for the **primary deployment model**:
 - CloudPanel proxies to `127.0.0.1:3000`
 - HTTPS is enabled and valid
 
-## 2) Docker / Portainer
-- stack uses `docker-compose.yml`
-- container builds successfully
-- app binds to `127.0.0.1:3000`
-- healthcheck passes
+## 2) Process manager (PM2)
+- App is registered in PM2: `pm2 list` shows `download-hub`
+- App binds to `127.0.0.1:3000`
+- `pm2 startup` enabled so it auto-starts on reboot
+- `pm2 save` after each config change
 
 ## 3) Production Environment Variables
 Must be set:
@@ -60,12 +60,11 @@ Must be set:
 
 ## 7) Logs & Health Check
 - `/health` returns 200
-- container logs are clean
+- `pm2 logs download-hub` shows no auth/storage errors
 - reverse proxy logs show healthy upstream behavior
 
 ## 8) Compatibility Mode (Local Disk Storage)
-Only if intentionally needed for local legacy deployment:
-- PM2 runtime instead of Docker
+Only if intentionally needed for legacy deployment:
 - Local disk storage (requires `R2_ENABLED=false`)
 - X-Accel-Redirect as primary delivery path (requires `USE_X_ACCEL_REDIRECT=true`)
-- Requires directory mounts for `/storage/files`
+- Requires writable `/storage/files` directory on the host

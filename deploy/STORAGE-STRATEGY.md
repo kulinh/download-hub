@@ -13,8 +13,7 @@ Local disk storage is supported **only** for local development, testing, or as a
 | Feature | Cloudflare R2 (Recommended) | Local Disk (Legacy / Dev) |
 | :--- | :--- | :--- |
 | **Scalability** | Near-infinite, managed by Cloudflare. No server disk space concerns. | Limited to the server's attached disk size. Requires manual scaling. |
-| **Statelessness** | ✅ **Enables stateless containers.** The app container holds no file data. | ❌ **Creates stateful containers.** Requires persistent volume mounts. |
-| **Docker-Friendliness**| Excellent. Containers are ephemeral and can be replaced or scaled easily. | Poor. Complicates container management, backups, and horizontal scaling. |
+| **Statelessness** | ✅ Stateless app process — no file data on the host. | ❌ Stateful — app process depends on the host filesystem. |
 | **Performance** | High-performance global object storage. Offloads delivery from the app server. | Limited by server's disk I/O and network bandwidth. App server is a bottleneck. |
 | **Cost** | Typically very low cost ($0.015/GB/month) with zero egress fees. | "Free" upfront, but you pay for server disk space, bandwidth, and operational time. |
 | **Backups** | Handled by Cloudflare's resilient infrastructure. Catalog (`files.json`) still needs backup. | Requires manual server-level or volume snapshot strategies. |
@@ -24,7 +23,7 @@ Local disk storage is supported **only** for local development, testing, or as a
 
 ### Production Mode: Cloudflare R2 (Default)
 
-Ensure these environment variables are set in your `.env` or Portainer stack:
+Ensure these environment variables are set in your `.env`:
 
 ```env
 # Enable R2 mode
@@ -37,29 +36,16 @@ R2_SECRET_ACCESS_KEY=...
 R2_BUCKET=your-bucket-name
 ```
 
-In this mode, no volume mount is needed for file storage, making the container fully stateless.
+In this mode the app process holds no file data — only the catalog and code.
 
 ### Development/Legacy Mode: Local Disk
 
-To use the local filesystem, explicitly disable R2 and mount the storage volume.
+To use the local filesystem, explicitly disable R2 and ensure `./storage/files/` exists and is writable by the process.
 
-1.  **Environment Variables:**
+```env
+# Disable R2 mode to fall back to local disk
+R2_ENABLED=false
+FILES_STORAGE_PATH=./storage/files
+```
 
-    ```env
-    # Disable R2 mode to fall back to local disk
-    R2_ENABLED=false
-    ```
-
-2.  **Docker Compose (`docker-compose.yml`):**
-
-    Ensure the `storage` volume is mounted.
-
-    ```yaml
-    services:
-      app:
-        # ...
-        volumes:
-          - ./storage:/app/storage
-    ```
-
-**Warning:** Running in local disk mode in production is **not recommended** and defeats many of the benefits of using a containerized, stateless application architecture.
+**Warning:** Running in local disk mode in production is **not recommended** because the app server becomes a delivery and storage bottleneck.

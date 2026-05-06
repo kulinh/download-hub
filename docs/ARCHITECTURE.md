@@ -61,7 +61,7 @@ download-hub/
 │   └── admin-r2.js            # R2/local file management JS
 ├── storage/files/             # Local file storage root
 ├── src/data/files.json        # File catalog (source of truth for metadata)
-└── deploy/                    # Deployment configs (Docker, Portainer, Nginx, CORS)
+└── deploy/                    # Deployment configs (PM2, Nginx, R2 CORS)
 ```
 
 ---
@@ -198,9 +198,9 @@ Hệ thống hỗ trợ hai storage provider, có thể dùng song song:
 | `FILES_INDEX_PATH` | Đường dẫn files.json | `./src/data/files.json` |
 | `FILES_STORAGE_PATH` | Thư mục local storage | `./storage/files` |
 
-> **Quan trọng**: App đọc `process.env` trực tiếp, không dùng dotenv.  
-> Chạy local: `node --env-file=.env src/server.js`  
-> Chạy Docker/Portainer: inject qua `environment:` trong docker-compose
+> **Quan trọng**: App đọc `process.env` trực tiếp, không dùng dotenv.
+> Chạy local: `node --env-file=.env src/server.js` (hoặc `npm run dev`).
+> Chạy production: PM2 đọc env trực tiếp từ `.env` qua `--env-file` flag trong `deploy/ecosystem.config.cjs`, hoặc `pm2 start ... --update-env` sau khi sửa file.
 
 ---
 
@@ -211,16 +211,15 @@ Internet → Cloudflare (CDN/WAF/Turnstile)
                 │
            Nginx (TLS termination, reverse proxy)
                 │ X-Accel-Redirect (optional local download)
-           Node.js app (port 3000)
+           Node.js app (PM2, 127.0.0.1:3000)
                 │
           ┌─────┴─────┐
          R2          Local disk
-     (Cloudflare)  (bind mount)
+     (Cloudflare)  (filesystem)
 ```
 
-- Docker Compose: `deploy/portainer-stack.yml`
-- Nginx config: `deploy/nginx-download-888vn.conf`
-- PM2 (bare-metal): `deploy/ecosystem.config.cjs`
+- PM2 ecosystem: `deploy/ecosystem.config.cjs`
+- Nginx vhost: `deploy/nginx-download-hub.conf` (or `deploy/nginx-download-888vn.conf` for the alpha host)
 
 ---
 

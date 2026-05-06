@@ -1,6 +1,6 @@
 # Migration Helper Scripts
 
-Mục tiêu: giảm thao tác tay khi chuyển từ local disk + `files.json` sang Docker + Cloudflare R2.
+Mục tiêu: giảm thao tác tay khi chuyển catalog từ local disk + `files.json` sang Cloudflare R2.
 
 ## 1) Export catalog + scan local storage
 

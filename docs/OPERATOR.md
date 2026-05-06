@@ -1,8 +1,8 @@
 # Operator Guide — download-hub
 
 This is the day-0/day-2 operator guide for the canonical deployment path:
-- Runtime: Docker container (via Docker Compose or Portainer stack)
-- Reverse proxy: CloudPanel Nginx only (TLS termination + proxy)
+- Runtime: Node.js + PM2 on the host (see `deploy/ecosystem.config.cjs`)
+- Reverse proxy: CloudPanel Nginx (TLS termination + proxy)
 - Storage: Cloudflare R2 (S3-compatible)
 - Public protection: Cloudflare Turnstile → short-lived HMAC download token
 - Admin protection: username + password + hCaptcha + signed session cookie
@@ -11,7 +11,7 @@ If you need deeper deployment detail, see the deploy references listed below.
 
 ## 1) Prerequisites
 - Domain + valid HTTPS cert on CloudPanel
-- Docker engine + docker compose (or Portainer)
+- Node.js 20+ and PM2 installed on the host
 - Cloudflare R2 account + bucket created
 - Turnstile + hCaptcha keys provisioned
 - Secrets prepared (see `.env.example`)
@@ -43,12 +43,18 @@ R2_BUCKET=<your-r2-bucket>
 
 ## 3) Build & run
 - `cp .env.example .env` and fill values above.
-- Docker quick start:
+- First-time install:
   ```bash
-  docker compose up -d --build
+  npm ci --omit=dev
+  npm run check
+  pm2 start deploy/ecosystem.config.cjs --env production
+  pm2 save
   curl http://127.0.0.1:3000/health
   ```
-- Portainer stack: use `docker-compose.yml`, supply env vars, deploy. Proxy `127.0.0.1:3000` from CloudPanel.
+- Update / redeploy:
+  ```bash
+  git pull && npm ci --omit=dev && pm2 restart download-hub
+  ```
 
 ## 4) Cloudflare R2 CORS — required
 Update and apply `deploy/R2-CORS-POLICY.json` before using admin uploads.
@@ -76,7 +82,8 @@ Update and apply `deploy/R2-CORS-POLICY.json` before using admin uploads.
 - Health endpoint: `GET /health` should return 200.
 - Admin login: `/admin/login` → hCaptcha → credentials → session cookie set.
 - Admin R2 panel: `/admin/r2` → list files, upload, publish/unpublish.
-- Logs: `docker compose logs -f` (or Portainer container logs) — ensure no auth/storage errors.
+- Logs: `pm2 logs download-hub` — ensure no auth/storage errors.
+- Status: `pm2 list` and `pm2 describe download-hub`.
 
 ## 6) Cutover & migration
 For migration/cutover steps, see:
@@ -86,10 +93,10 @@ For migration/cutover steps, see:
 - `deploy/CUTOVER-RUNBOOK-ALPHA.md`
 
 ## 7) Reverse proxy note
-CloudPanel is only the HTTPS terminator and proxy. App stays inside Docker on `127.0.0.1:3000`. Use `deploy/nginx-download-hub.conf` as a reference vhost.
+CloudPanel is only the HTTPS terminator and proxy. The Node.js app stays bound to `127.0.0.1:3000`. Use `deploy/nginx-download-hub.conf` as a reference vhost.
 
 ## 8) Quick references
-- Deployment: `deploy/DOCKER-DEPLOY.md`, `deploy/README.md`, `deploy/PORTAINER-STACK.md`, `deploy/PORTAINER-ENV-QUICKREF.md`, `deploy/PORTAINER-UI-CHECKLIST.md`
+- Deployment: `deploy/README.md`, `deploy/ecosystem.config.cjs`, `deploy/nginx-download-hub.conf`
 - Storage: `deploy/R2-CORS-POLICY.json` (update origin + apply per section 4), `deploy/STORAGE-STRATEGY.md`
 - Release handoff: `deploy/RELEASE-HANDOFF.md`
 
