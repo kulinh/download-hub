@@ -3,176 +3,274 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= locale === 'vi' ? 'Quản lý Storage — Download Hub Admin' : 'Storage Management — Download Hub Admin' %></title>
+  <title><%= locale === 'vi' ? 'Storage — Admin · Download Hub' : 'Storage — Admin · Download Hub' %></title>
   <link rel="stylesheet" href="/assets/site.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script nonce="<%= cspNonce %>">(function(){var t=localStorage.getItem('theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t)})();</script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script nonce="<%= cspNonce %>">(function(){var t=localStorage.getItem('dl.theme')||(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t)})();</script>
 </head>
-<body>
-  <main class="container admin-container">
+<body class="admin-body">
 
-    <!-- Top bar -->
-    <div class="top-bar admin-topbar">
-      <div style="display:flex;align-items:center;gap:12px;">
-        <a class="back" href="/?lang=<%= locale %>">← <%= t('backHome') %></a>
-        <span class="admin-badge">Admin</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <nav class="lang-switch small" aria-label="Language selection">
-          <a href="/admin?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>">VI</a>
-          <a href="/admin?lang=en" class="<%= locale === 'en' ? 'active' : '' %>">EN</a>
+  <!-- Admin top bar -->
+  <header class="topbar admin-topbar" role="banner">
+    <div class="topbar-inner">
+      <div class="topbar-left">
+        <a class="topbar-back" href="/?lang=<%= locale %>" aria-label="<%= locale === 'vi' ? 'Về trang chủ' : 'Back to home' %>">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        </a>
+        <a class="topbar-brand" href="/admin">
+          <span class="brand-dot" aria-hidden="true"></span>
+          <span>DOWNLOAD HUB</span>
+          <span class="brand-sep" aria-hidden="true">/</span>
+          <span class="brand-sub">Admin</span>
+        </a>
+        <nav class="admin-section-nav" aria-label="Admin sections">
+          <a href="/admin" class="section-link active">
+            <%= locale === 'vi' ? 'Storage' : 'Storage' %>
+          </a>
         </nav>
-        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
-          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </div>
+      <div class="topbar-actions">
+        <nav class="lang-toggle" aria-label="Language">
+          <a href="/admin?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>" hreflang="vi" aria-label="Tiếng Việt">VI</a>
+          <a href="/admin?lang=en" class="<%= locale === 'en' ? 'active' : '' %>" hreflang="en" aria-label="English">EN</a>
+        </nav>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+          <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
-        <form method="POST" action="/admin/logout" style="margin:0;">
+        <form method="POST" action="/admin/logout" style="margin:0;display:inline;">
           <input type="hidden" name="_csrf" value="<%= csrfToken || '' %>" />
-          <button type="submit" class="button button-ghost button-sm">
+          <button type="submit" class="btn-ghost btn-sm">
             <%= locale === 'vi' ? 'Đăng xuất' : 'Sign out' %>
           </button>
         </form>
       </div>
     </div>
+  </header>
 
-    <!-- Hero -->
-    <header class="hero admin-hero" style="margin-bottom:28px;">
-      <div>
-        <p class="eyebrow">Download Hub / R2 Admin</p>
-        <% if (localStorageEnabled && !r2Enabled) { %>
-          <p class="note" style="color:var(--color-warn,#f59e0b);margin-top:6px;">
-            <%= locale === 'vi' ? 'Đang dùng lưu trữ cục bộ (R2 tắt).' : 'Using local storage only (R2 disabled).' %>
-          </p>
-        <% } %>
-        <h1>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px;color:var(--accent)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
-          <%= locale === 'vi' ? 'Quản lý Storage' : 'Storage Management' %>
-        </h1>
-        <p class="hero-desc">
-          <%= locale === 'vi'
-            ? 'Xem, upload, xóa, publish/unpublish file trên Cloudflare R2 hoặc lưu trữ cục bộ. File sẽ được phân phối qua presigned URL sau khi người dùng xác minh Turnstile.'
-            : 'View, upload, delete, and publish/unpublish files on Cloudflare R2 hoặc lưu trữ cục bộ. Files are delivered via presigned URLs after Turnstile verification.' %>
-        </p>
+  <div class="admin-main">
+
+    <!-- Page heading -->
+    <div class="admin-page-head">
+      <div class="admin-breadcrumb" aria-label="Breadcrumb">
+        <span class="crumb">/</span>
+        <span class="crumb">admin</span>
+        <span class="crumb-sep" aria-hidden="true">/</span>
+        <span class="crumb active">storage</span>
       </div>
-    </header>
-
-    <!-- Action toolbar -->
-    <div class="admin-toolbar" id="admin-toolbar" style="margin-bottom:20px;">
-      <div class="toolbar-row">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-          <button type="button" id="btn-refresh" class="button button-secondary button-sm">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      <div class="admin-head-row">
+        <div>
+          <h1 class="admin-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:6px;color:var(--accent)"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+            <%= locale === 'vi' ? 'Quản lý Storage' : 'Storage Management' %>
+          </h1>
+          <p class="admin-desc">
+            <%= locale === 'vi'
+              ? 'Upload, publish và quản lý file trên R2, Dropbox, hoặc local storage.'
+              : 'Upload, publish, and manage files across R2, Dropbox, or local storage.' %>
+          </p>
+        </div>
+        <div class="admin-head-ctas">
+          <button type="button" id="btn-refresh" class="btn-secondary btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             <%= locale === 'vi' ? 'Làm mới' : 'Refresh' %>
           </button>
-          <button type="button" id="btn-sync-index" class="button button-secondary button-sm">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
-            <%= locale === 'vi' ? 'Đồng bộ Index' : 'Sync Index' %>
+          <button type="button" id="btn-sync-index" class="btn-secondary btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4"/></svg>
+            <%= locale === 'vi' ? 'Đồng bộ' : 'Sync index' %>
           </button>
-          <label class="button button-accent button-sm upload-label" for="r2-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên R2' : 'Upload file to R2' %>">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <%= locale === 'vi' ? 'Upload R2' : 'Upload R2' %>
-          </label>
-          <input type="file" id="r2-upload-input" style="display:none;" multiple />
-          <% if (localStorageEnabled) { %>
-            <label class="button button-secondary button-sm upload-label" for="local-upload-input" aria-label="<%= locale === 'vi' ? 'Upload lưu cục bộ' : 'Upload to local storage' %>">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21h9"/><path d="M12 12v9"/><path d="M12 8V3"/><path d="M5 21h3"/></svg>
-              <%= locale === 'vi' ? 'Upload Local' : 'Upload Local' %>
-            </label>
-            <input type="file" id="local-upload-input" style="display:none;" multiple />
-          <% } %>
-          <label class="button button-secondary button-sm upload-label" for="dropbox-upload-input" aria-label="<%= locale === 'vi' ? 'Upload file lên Dropbox' : 'Upload file to Dropbox' %>">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-            Dropbox
-          </label>
-          <input type="file" id="dropbox-upload-input" style="display:none;" multiple />
-        </div>
-        <div id="r2-config-status" class="storage-status-chips" aria-live="polite">
-          <span class="storage-chip storage-chip--pending">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-            <%= locale === 'vi' ? 'Đang kết nối…' : 'Connecting…' %>
-          </span>
+          <button type="button" id="btn-upload-toggle" class="btn-accent btn-sm">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <%= locale === 'vi' ? 'Upload' : 'Upload' %>
+          </button>
         </div>
       </div>
-      <div id="upload-progress" class="upload-progress" hidden></div>
-      <p id="toolbar-status" class="toolbar-status-inline" role="status" aria-live="polite"></p>
+      <div id="toolbar-status" class="toolbar-status-inline" role="status" aria-live="polite"></div>
     </div>
 
-    <div id="r2-diag-panel" class="alert alert-warn" style="display:none;margin-bottom:16px;">
-      <strong><%= locale === 'vi' ? 'Upload bị chặn (CORS / cấu hình R2).' : 'Upload blocked (CORS / R2 config).' %></strong>
-      <div id="r2-diag-body" style="margin-top:6px;font-size:14px;line-height:1.4;"></div>
+    <!-- Stats strip -->
+    <div class="stats-strip" id="stats-strip" aria-label="<%= locale === 'vi' ? 'Tổng quan' : 'Overview' %>">
+      <div class="stat-card">
+        <span class="stat-label"><%= locale === 'vi' ? 'Tổng file' : 'Files' %></span>
+        <span class="stat-value" id="stat-total-files">—</span>
+        <span class="stat-sub" id="stat-files-sub"></span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label"><%= locale === 'vi' ? 'Dung lượng' : 'Total size' %></span>
+        <span class="stat-value" id="stat-total-size">—</span>
+        <div class="stat-bar-wrap" id="stat-source-bar" aria-label="Source breakdown" role="img"></div>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label"><%= locale === 'vi' ? 'Lượt tải (30d)' : 'Downloads (30d)' %></span>
+        <span class="stat-value" id="stat-downloads">—</span>
+        <svg id="stat-sparkline" class="sparkline" width="120" height="28" aria-hidden="true"></svg>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label"><%= locale === 'vi' ? 'Published' : 'Published' %></span>
+        <span class="stat-value" id="stat-published">—</span>
+        <div class="stat-progress-wrap" role="img" aria-label="Published ratio">
+          <div class="stat-progress-bar" id="stat-progress-bar"></div>
+        </div>
+      </div>
     </div>
 
-    <!-- Storage Inventory Table -->
-    <section class="card admin-card">
-      <h2 class="admin-section-title">
-        <%= locale === 'vi' ? 'Kho file — Catalog' : 'Storage — File Catalog' %>
-        <span id="file-count-badge" class="count-badge" style="display:none;"></span>
-      </h2>
+    <!-- Upload zone (collapsible) -->
+    <div id="upload-zone-wrap" class="upload-zone-card" hidden>
+      <div class="upload-zone-tabs" role="tablist" aria-label="<%= locale === 'vi' ? 'Chọn nơi upload' : 'Upload destination' %>">
+        <button class="zone-tab active" data-dest="r2" role="tab" aria-selected="true">R2</button>
+        <% if (localStorageEnabled) { %>
+          <button class="zone-tab" data-dest="local" role="tab" aria-selected="false">Local</button>
+        <% } %>
+        <button class="zone-tab" data-dest="dropbox" role="tab" aria-selected="false">Dropbox</button>
+      </div>
+      <div id="upload-drop-area" class="upload-drop-area" role="region" aria-label="<%= locale === 'vi' ? 'Khu vực kéo thả file' : 'File drop area' %>">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="drop-label">
+          <%= locale === 'vi' ? 'Kéo file vào đây hoặc ' : 'Drop files here or ' %><button type="button" class="drop-browse" id="drop-browse"><%= locale === 'vi' ? 'chọn file' : 'browse' %></button>
+        </p>
+        <p class="drop-hint">PDF, MP4, ZIP — <%= locale === 'vi' ? 'tối đa 5 GB/file' : 'max 5 GB per file' %></p>
+        <input type="file" id="upload-file-input" multiple style="display:none;" />
+      </div>
+      <div id="upload-active-list" class="upload-active-list" hidden></div>
+    </div>
+
+    <!-- Storage toolbar -->
+    <div class="storage-toolbar" role="search">
+      <div class="storage-search-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="admin-search" class="admin-search-input"
+          placeholder="<%= locale === 'vi' ? 'Tìm kiếm file…' : 'Search files…' %>"
+          aria-label="<%= locale === 'vi' ? 'Tìm kiếm file' : 'Search files' %>"
+          autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="storage-filters">
+        <div class="seg-group" role="group" aria-label="Source">
+          <button class="seg-btn active" data-source="all">All</button>
+          <button class="seg-btn" data-source="r2">R2</button>
+          <button class="seg-btn" data-source="dropbox">Dropbox</button>
+          <% if (localStorageEnabled) { %>
+            <button class="seg-btn" data-source="local">Local</button>
+          <% } %>
+        </div>
+        <div class="seg-group" role="group" aria-label="Status">
+          <button class="seg-btn active" data-status="all"><%= locale === 'vi' ? 'Tất cả' : 'All' %></button>
+          <button class="seg-btn" data-status="published"><%= locale === 'vi' ? 'Published' : 'Published' %></button>
+          <button class="seg-btn" data-status="draft">Draft</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk action bar (hidden until ≥1 row selected) -->
+    <div id="bulk-bar" class="bulk-bar" hidden role="toolbar" aria-label="<%= locale === 'vi' ? 'Thao tác hàng loạt' : 'Bulk actions' %>">
+      <span class="bulk-count" id="bulk-count">0 <%= locale === 'vi' ? 'đã chọn' : 'selected' %></span>
+      <div class="bulk-actions">
+        <button class="btn-secondary btn-sm" id="bulk-publish">
+          <%= locale === 'vi' ? 'Publish tất cả' : 'Bulk publish' %>
+        </button>
+        <button class="btn-secondary btn-sm" id="bulk-unpublish">
+          <%= locale === 'vi' ? 'Unpublish tất cả' : 'Unpublish' %>
+        </button>
+        <button class="btn-danger btn-sm" id="bulk-delete">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          <%= locale === 'vi' ? 'Xóa' : 'Delete' %>
+        </button>
+      </div>
+      <button class="bulk-clear" id="bulk-clear" aria-label="<%= locale === 'vi' ? 'Bỏ chọn tất cả' : 'Clear selection' %>">×</button>
+    </div>
+
+    <!-- Storage table card -->
+    <section class="storage-table-card admin-card">
+      <div class="storage-table-head">
+        <div class="storage-table-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <%= locale === 'vi' ? 'File Catalog' : 'File Catalog' %>
+          <span id="file-count-badge" class="count-badge"></span>
+        </div>
+        <span id="r2-config-status" class="storage-chip-area" aria-live="polite">
+          <span class="storage-chip storage-chip--pending">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <%= locale === 'vi' ? 'Đang kết nối…' : 'Connecting…' %>
+          </span>
+        </span>
+      </div>
       <div id="r2-inventory-wrap" class="table-wrap">
         <div class="empty-state">
-          <span class="empty-state-icon" aria-hidden="true">🗄️</span>
-          <h3 class="empty-state-heading"><%= locale === 'vi' ? 'Chưa tải dữ liệu' : 'Not loaded yet' %></h3>
-          <p class="empty-state-message"><%= locale === 'vi' ? 'Hệ thống sẽ tự động tải sau khi trang khởi động.' : 'Data will load automatically on page start.' %></p>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="opacity:0.3"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+          <p class="empty-state-msg"><%= locale === 'vi' ? 'Đang tải dữ liệu…' : 'Loading data…' %></p>
         </div>
+      </div>
+      <div class="table-foot" id="table-foot" hidden>
+        <span id="foot-count"></span>
+        <span class="foot-sep" aria-hidden="true">·</span>
+        <span id="foot-size"></span>
       </div>
     </section>
 
-    <!-- Upload Drawer / Modal -->
-    <div id="upload-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="upload-modal-title">
-      <div class="modal-panel">
-        <div class="modal-header">
-          <h3 id="upload-modal-title"><%= locale === 'vi' ? 'Upload lên R2' : 'Upload to R2' %></h3>
-          <button type="button" id="upload-modal-close" class="modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
+  </div><!-- /.admin-main -->
+
+  <!-- Upload progress panel -->
+  <div id="upload-progress" class="upload-progress-panel" hidden role="status" aria-live="polite"></div>
+
+  <!-- File Edit Modal -->
+  <div id="edit-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <span class="modal-title" id="edit-modal-title"><%= locale === 'vi' ? 'Chỉnh sửa metadata' : 'Edit file metadata' %></span>
+        <button type="button" id="edit-modal-close" class="modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
+      </div>
+      <div id="edit-modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Delete confirmation modal -->
+  <div id="delete-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+    <div class="modal-panel modal-panel--sm">
+      <div class="modal-head">
+        <span class="modal-title" id="delete-modal-title"><%= locale === 'vi' ? 'Xác nhận xóa' : 'Confirm delete' %></span>
+        <button type="button" id="delete-modal-close" class="modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
+      </div>
+      <div class="modal-body">
+        <p id="delete-modal-msg" style="margin-bottom:20px;"></p>
+        <div class="modal-actions">
+          <button class="btn-ghost" id="delete-modal-cancel"><%= locale === 'vi' ? 'Hủy' : 'Cancel' %></button>
+          <button class="btn-danger" id="delete-modal-confirm"><%= locale === 'vi' ? 'Xóa' : 'Delete' %></button>
         </div>
-        <div id="upload-modal-body" class="modal-body"></div>
       </div>
     </div>
-
-    <!-- File Edit Modal -->
-    <div id="edit-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
-      <div class="modal-panel">
-        <div class="modal-header">
-          <h3 id="edit-modal-title"><%= locale === 'vi' ? 'Chỉnh sửa metadata file' : 'Edit file metadata' %></h3>
-          <button type="button" id="edit-modal-close" class="modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
-        </div>
-        <div id="edit-modal-body" class="modal-body"></div>
-      </div>
-    </div>
-
-  </main>
+  </div>
 
   <script
     src="/assets/admin-r2.js?v=<%= assetVersion %>"
     nonce="<%= cspNonce %>"
     data-locale="<%= locale %>"
     data-csrf="<%= csrfToken || '' %>"
+    data-r2-enabled="<%= r2Enabled %>"
+    data-local-enabled="<%= localStorageEnabled %>"
+    data-dropbox-enabled="<%= typeof dropboxConfigured !== 'undefined' ? dropboxConfigured : false %>"
     data-msg-r2-ok="<%= locale === 'vi' ? 'R2 đã kết nối.' : 'R2 connected.' %>"
-    data-msg-r2-missing="<%= locale === 'vi' ? 'R2 chưa được cấu hình. Hãy set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY và R2_BUCKET trong .env.' : 'R2 is not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET in .env.' %>"
-    data-msg-r2-local-only="<%= locale === 'vi' ? 'Chỉ dùng lưu cục bộ (R2 tắt).' : 'Using local storage (R2 disabled).' %>"
+    data-msg-r2-missing="<%= locale === 'vi' ? 'R2 chưa cấu hình.' : 'R2 not configured.' %>"
+    data-msg-r2-local-only="<%= locale === 'vi' ? 'Chỉ dùng lưu cục bộ.' : 'Local storage only.' %>"
     data-msg-loading="<%= locale === 'vi' ? 'Đang tải…' : 'Loading…' %>"
     data-msg-loaded="<%= locale === 'vi' ? 'Đã tải xong.' : 'Loaded.' %>"
-    data-msg-syncing="<%= locale === 'vi' ? 'Đang đồng bộ index…' : 'Syncing index…' %>"
+    data-msg-syncing="<%= locale === 'vi' ? 'Đang đồng bộ…' : 'Syncing…' %>"
     data-msg-synced="<%= locale === 'vi' ? 'Đồng bộ xong.' : 'Sync complete.' %>"
     data-msg-uploading="<%= locale === 'vi' ? 'Đang upload…' : 'Uploading…' %>"
     data-msg-upload-ok="<%= locale === 'vi' ? 'Upload thành công.' : 'Upload successful.' %>"
     data-msg-upload-err="<%= locale === 'vi' ? 'Upload thất bại.' : 'Upload failed.' %>"
-    data-msg-upload-blocked="<%= locale === 'vi' ? 'Upload bị chặn (CORS/ cấu hình R2). Xem chi tiết trong console.' : 'Upload blocked (CORS/R2 config). See console for details.' %>"
-    data-msg-r2-put-failed="<%= locale === 'vi' ? 'Upload R2 thất bại (PUT bị chặn/CORS?). Kiểm tra CORS và bucket.' : 'R2 upload failed (PUT blocked/CORS?). Check CORS and bucket.' %>"
-    data-msg-r2-cors="<%= locale === 'vi' ? 'Kiểm tra CORS rules trên Cloudflare R2 và thông tin account/bucket.' : 'Verify Cloudflare R2 CORS rules and account/bucket info.' %>"
     data-msg-deleting="<%= locale === 'vi' ? 'Đang xóa…' : 'Deleting…' %>"
     data-msg-deleted="<%= locale === 'vi' ? 'Đã xóa.' : 'Deleted.' %>"
-    data-msg-delete-confirm="<%= locale === 'vi' ? 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.' : 'Are you sure you want to delete this file? This cannot be undone.' %>"
-    data-msg-saved="<%= locale === 'vi' ? 'Đã lưu thay đổi.' : 'Changes saved.' %>"
+    data-msg-delete-confirm="<%= locale === 'vi' ? 'Bạn chắc chắn muốn xóa file này? Hành động không thể hoàn tác.' : 'Delete this file? This action cannot be undone.' %>"
+    data-msg-saved="<%= locale === 'vi' ? 'Đã lưu.' : 'Saved.' %>"
     data-msg-published="<%= locale === 'vi' ? 'Đã publish.' : 'Published.' %>"
     data-msg-unpublished="<%= locale === 'vi' ? 'Đã unpublish.' : 'Unpublished.' %>"
-    data-msg-no-files="<%= locale === 'vi' ? 'Chưa có file nào trong R2.' : 'No files in R2 yet.' %>"
-    data-msg-r2-unavail="<%= locale === 'vi' ? 'R2 chưa được cấu hình trên server này.' : 'R2 is not configured on this server.' %>"
+    data-msg-no-files="<%= locale === 'vi' ? 'Chưa có file nào.' : 'No files yet.' %>"
     data-col-key="<%= locale === 'vi' ? 'Đường dẫn / Key' : 'Path / Key' %>"
     data-col-size="<%= locale === 'vi' ? 'Dung lượng' : 'Size' %>"
     data-col-modified="<%= locale === 'vi' ? 'Cập nhật' : 'Modified' %>"
-    data-col-published="<%= locale === 'vi' ? 'Published' : 'Published' %>"
+    data-col-dl="DL"
+    data-col-published="<%= locale === 'vi' ? 'Pub' : 'Pub' %>"
     data-col-actions="<%= locale === 'vi' ? 'Thao tác' : 'Actions' %>"
     data-label-edit="<%= locale === 'vi' ? 'Sửa' : 'Edit' %>"
     data-label-delete="<%= locale === 'vi' ? 'Xóa' : 'Delete' %>"
@@ -185,12 +283,12 @@
     data-label-version="<%= locale === 'vi' ? 'Phiên bản' : 'Version' %>"
     data-label-platform="Platform"
     data-label-save="<%= locale === 'vi' ? 'Lưu' : 'Save' %>"
-    data-label-cancel="<%= locale === 'vi' ? 'Huỷ' : 'Cancel' %>"
+    data-label-cancel="<%= locale === 'vi' ? 'Hủy' : 'Cancel' %>"
     data-label-files="<%= locale === 'vi' ? 'file' : 'files' %>"
-    data-label-choose-file="<%= locale === 'vi' ? 'Chọn file để upload' : 'Choose files to upload' %>"
-    data-label-r2-path="<%= locale === 'vi' ? 'Đường dẫn R2 (để trống = tên file gốc)' : 'R2 path (leave blank = original filename)' %>"
-    data-label-upload-btn="<%= locale === 'vi' ? 'Bắt đầu upload' : 'Start upload' %>"
+    data-label-selected="<%= locale === 'vi' ? 'đã chọn' : 'selected' %>"
+    data-label-filtered="<%= locale === 'vi' ? 'hiển thị' : 'shown' %>"
+    data-label-of="<%= locale === 'vi' ? 'trong' : 'of' %>"
   ></script>
-  <script src="/assets/theme.js"></script>
+  <script src="/assets/theme.js" nonce="<%= cspNonce %>"></script>
 </body>
 </html>

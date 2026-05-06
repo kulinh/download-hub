@@ -894,4 +894,50 @@ router.post('/api/admin/dropbox/upload', requireAdminSession, dropboxUploadParse
   }
 });
 
+// ── Bulk actions ──────────────────────────────────────────────────────────────
+
+router.post('/api/admin/bulk', requireAdminSession, enforceJsonContentType, async (req, res, next) => {
+  try {
+    const { ids, action } = req.body || {};
+    if (!Array.isArray(ids) || !ids.length) {
+      return res.status(400).json({ ok: false, error: 'ids_required' });
+    }
+    if (!['publish', 'unpublish', 'delete'].includes(action)) {
+      return res.status(400).json({ ok: false, error: 'invalid_action' });
+    }
+
+    const catalog = await getAllFiles();
+    const results = [];
+
+    for (const id of ids) {
+      const idx = catalog.findIndex(e => e.slug === id || e.r2Key === id || e.storage?.relativePath === id || e.storage?.dropboxPath === id);
+      if (idx < 0) { results.push({ id, ok: false, error: 'not_found' }); continue; }
+      const entry = catalog[idx];
+
+      if (action === 'publish') {
+        entry.published = true;
+        entry.updatedAt = new Date().toISOString();
+        results.push({ id, ok: true });
+      } else if (action === 'unpublish') {
+        entry.published = false;
+        entry.updatedAt = new Date().toISOString();
+        results.push({ id, ok: true });
+      } else if (action === 'delete') {
+        const r2Key = getStorageObjectKey(entry);
+        if (isR2Configured() && r2Key && (entry.storageProvider === 'r2' || entry.storage?.provider === 'r2')) {
+          try { await deleteR2Object(r2Key); } catch (_) { /* best effort */ }
+        }
+        catalog.splice(idx, 1);
+        results.push({ id, ok: true });
+      }
+    }
+
+    await writeRawFilesIndex(catalog);
+    await reloadFiles();
+    res.json({ ok: true, action, results });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

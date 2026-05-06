@@ -3,84 +3,188 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= t('siteTitle') %></title>
-  <meta name="description" content="<%= t('siteDescription') %>" />
+  <title>DOWNLOAD HUB</title>
+  <meta name="description" content="Public file downloads secured by Turnstile verification." />
   <link rel="stylesheet" href="/assets/site.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <script nonce="<%= cspNonce %>">(function(){var t=localStorage.getItem('theme')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.setAttribute('data-theme',t)})();</script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <% if (turnstileSiteKey) { %>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <% } %>
+  <script nonce="<%= cspNonce %>">(function(){var t=localStorage.getItem('dl.theme')||(window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t)})();</script>
 </head>
 <body>
-  <main class="container">
-    <header class="hero">
-      <div>
-        <p class="eyebrow"><%= t('siteTitle') %></p>
-        <h1><%= t('siteTitle') %></h1>
-        <p class="hero-desc"><%= t('siteDescription') %></p>
-        <% if (provider && provider.provider === 'turnstile') { %>
-          <p class="note captcha-notice"><%= t('providerTurnstile') %></p>
-        <% } else if (provider && provider.provider === 'hcaptcha') { %>
-          <p class="note captcha-notice"><%= t('providerHcaptcha') %></p>
-        <% } else { %>
-          <p class="note captcha-notice captcha-notice--warn"><%= t('captchaUnavailableHeading') %></p>
-        <% } %>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;align-self:flex-start;margin-top:4px;">
-        <nav class="lang-switch" aria-label="Language selection">
+
+  <!-- Sticky top bar -->
+  <header class="topbar" role="banner">
+    <div class="topbar-inner">
+      <a class="topbar-brand" href="/?lang=<%= locale %>">
+        <span class="brand-dot" aria-hidden="true"></span>
+        <span>DOWNLOAD HUB</span>
+        <span class="brand-sep" aria-hidden="true">/</span>
+        <span class="brand-sub">Public files</span>
+      </a>
+      <div class="topbar-actions">
+        <nav class="lang-toggle" aria-label="Language">
           <a href="/?lang=vi" class="<%= locale === 'vi' ? 'active' : '' %>" hreflang="vi" aria-label="Tiếng Việt">VI</a>
           <a href="/?lang=en" class="<%= locale === 'en' ? 'active' : '' %>" hreflang="en" aria-label="English">EN</a>
         </nav>
-        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Toggle theme">
-          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+          <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+          <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         </button>
+        <a class="topbar-admin-link" href="/admin"><%= locale === 'vi' ? 'Admin' : 'Admin' %></a>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <section aria-labelledby="files-heading">
-      <h2 id="files-heading"><%= t('filesHeading') %></h2>
-      <% if (files.length === 0) { %>
-        <div class="empty-state" role="status" aria-live="polite">
-          <span class="empty-state-icon" aria-hidden="true">📭</span>
-          <h3 class="empty-state-heading"><%= t('noFilesHeading') %></h3>
-          <p class="empty-state-message"><%= t('noFilesMessage') %></p>
-        </div>
-      <% } else { %>
-        <div class="grid">
-          <% files.forEach((file) => { %>
-            <article class="card<%= file.featured ? ' featured' : '' %>" aria-label="<%= file.title[locale] || file.title.en %>">
-              <div class="card-top">
-                <div class="card-badges">
-                  <% if (file.featured) { %><span class="badge-featured"><%= t('featuredBadge') %></span><% } %>
-                  <span class="platform-badge platform-<%= file.platform.toLowerCase().replace(/\s+/g, '-') %>"><%= file.platform %></span>
-                </div>
-                <span class="card-version"><%= file.version %></span>
-              </div>
-              <h3><%= file.title[locale] || file.title.en %></h3>
-              <p class="card-summary"><%= file.summary[locale] || file.summary.en %></p>
-              <div class="card-footer">
-                <div class="card-meta">
-                  <span class="mono"><%= file.displaySize %></span>
-                  <% if (file.updatedAt) { %>
-                    <span class="meta-sep">·</span>
-                    <span><%= new Date(file.updatedAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US') %></span>
-                  <% } %>
-                  <% if (file.r2 && file.r2.key) { %>
-                    <span class="meta-sep">·</span>
-                    <span class="r2-badge">R2</span>
-                  <% } %>
-                </div>
-                <a class="button button-download" href="/download/<%= file.slug %>?lang=<%= locale %>">
-                  <%= t('verifyAndDownload') %> <span class="btn-arrow" aria-hidden="true">→</span>
-                </a>
-              </div>
-            </article>
-          <% }) %>
-        </div>
-      <% } %>
-    </section>
+  <!-- Hero -->
+  <section class="hero-section" aria-label="Site overview">
+    <div class="hero-inner">
+      <p class="hero-meta">
+        <span class="hero-live" aria-label="Live">
+          <span class="live-dot" aria-hidden="true"></span>live
+        </span>
+        <span class="hero-path" aria-hidden="true">~/downloads/public</span>
+      </p>
+      <h1 class="hero-title">
+        <%= locale === 'vi' ? 'Tải xuống công khai' : 'Public Downloads' %><span class="cursor" aria-hidden="true">_</span>
+      </h1>
+      <p class="hero-tagline">
+        <%= locale === 'vi' ? 'File được xác minh bảo mật qua Turnstile trước khi tải.' : 'Verified downloads secured by Cloudflare Turnstile.' %>
+      </p>
+      <p class="hero-stats" aria-live="polite">
+        <span id="stat-count">—</span>
+        <span class="stat-sep" aria-hidden="true">·</span>
+        <span id="stat-size">—</span>
+        <span class="stat-sep" aria-hidden="true">·</span>
+        <span id="stat-dl">—</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Sticky toolbar -->
+  <div class="toolbar sticky-toolbar" role="search">
+    <div class="toolbar-inner">
+      <div class="search-wrap">
+        <input
+          type="search"
+          id="search-input"
+          class="search-input"
+          placeholder="<%= locale === 'vi' ? 'Tìm kiếm…' : 'Search files…' %>"
+          aria-label="<%= locale === 'vi' ? 'Tìm kiếm file' : 'Search files' %>"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <kbd class="search-kbd" aria-hidden="true">/</kbd>
+      </div>
+      <div class="filter-chips" id="filter-chips" role="group" aria-label="<%= locale === 'vi' ? 'Lọc theo loại' : 'Filter by category' %>">
+        <!-- rendered by homepage.js -->
+      </div>
+      <select id="sort-select" class="sort-select" aria-label="<%= locale === 'vi' ? 'Sắp xếp' : 'Sort' %>">
+        <option value="recent"><%= locale === 'vi' ? 'Mới nhất' : 'Recent' %></option>
+        <option value="popular"><%= locale === 'vi' ? 'Phổ biến' : 'Popular' %></option>
+        <option value="size"><%= locale === 'vi' ? 'Dung lượng' : 'Size' %></option>
+        <option value="name"><%= locale === 'vi' ? 'Tên A-Z' : 'Name A-Z' %></option>
+      </select>
+    </div>
+  </div>
+
+  <!-- File list -->
+  <main class="main-content" id="main">
+    <div id="file-table-wrap">
+      <!-- rendered by homepage.js -->
+    </div>
   </main>
-  <script src="/assets/theme.js"></script>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <span>dl-hub</span>
+    <span class="footer-sep" aria-hidden="true">·</span>
+    <span>cloudflare workers</span>
+    <span class="footer-sep" aria-hidden="true">·</span>
+    <% if (provider) { %>
+      <span>turnstile protected</span>
+    <% } else { %>
+      <span><%= locale === 'vi' ? 'xác minh chưa bật' : 'verification unconfigured' %></span>
+    <% } %>
+  </footer>
+
+  <!-- Download modal -->
+  <div id="dl-modal" class="modal-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="dl-modal-title">
+    <div class="modal-panel">
+      <div class="modal-head">
+        <span class="modal-title" id="dl-modal-title">
+          <%= locale === 'vi' ? 'Xác minh để tải' : 'Verify to download' %>
+        </span>
+        <button class="modal-close" id="dl-modal-close" aria-label="<%= locale === 'vi' ? 'Đóng' : 'Close' %>">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-file-info" id="dl-modal-file-info">
+          <svg class="modal-file-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <div>
+            <p class="modal-file-name" id="dl-modal-filename">—</p>
+            <p class="modal-file-meta" id="dl-modal-meta">—</p>
+          </div>
+        </div>
+
+        <p class="modal-verify-label">
+          <%= locale === 'vi' ? 'Xác minh bảo mật' : 'Security verification' %>
+        </p>
+
+        <% if (turnstileSiteKey) { %>
+          <div id="dl-turnstile-wrap">
+            <!-- widget injected by homepage.js -->
+          </div>
+        <% } else { %>
+          <p style="font-size:0.78rem;color:var(--fg-subtle);">
+            <%= locale === 'vi' ? 'Xác minh chưa được bật. Nhấn tiếp tục để thử tải.' : 'Verification not configured. Click proceed to attempt download.' %>
+          </p>
+        <% } %>
+
+        <div id="dl-modal-error" class="modal-error" hidden role="alert"></div>
+
+        <div class="modal-actions">
+          <button class="btn-ghost" id="dl-modal-cancel"><%= locale === 'vi' ? 'Hủy' : 'Cancel' %></button>
+          <button class="btn-primary" id="dl-modal-proceed" disabled>
+            <%= locale === 'vi' ? 'Tải xuống' : 'Proceed' %>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File data for client-side rendering (no eval, safe JSON) -->
+  <script id="files-data" type="application/json"><%- filesJson %></script>
+
+  <script
+    src="/assets/homepage.js"
+    nonce="<%= cspNonce %>"
+    data-locale="<%= locale %>"
+    data-turnstile-key="<%= turnstileSiteKey %>"
+    data-verify-path="/api/verify/"
+    data-label-files="<%= locale === 'vi' ? 'file' : 'files' %>"
+    data-label-total="<%= locale === 'vi' ? 'tổng' : 'total' %>"
+    data-label-downloads="<%= locale === 'vi' ? 'lượt tải' : 'downloads' %>"
+    data-label-search-empty="<%= locale === 'vi' ? 'Không tìm thấy file nào phù hợp.' : 'No files matched.' %>"
+    data-label-no-files="<%= locale === 'vi' ? 'Chưa có file nào được công bố.' : 'No published files yet.' %>"
+    data-label-name="<%= locale === 'vi' ? 'Tên file' : 'Name' %>"
+    data-label-type="<%= locale === 'vi' ? 'Loại' : 'Type' %>"
+    data-label-size="<%= locale === 'vi' ? 'Dung lượng' : 'Size' %>"
+    data-label-modified="<%= locale === 'vi' ? 'Cập nhật' : 'Modified' %>"
+    data-label-dl="<%= locale === 'vi' ? 'Lượt tải' : 'DL' %>"
+    data-label-action="<%= locale === 'vi' ? 'Tải' : 'Download' %>"
+    data-label-all="<%= locale === 'vi' ? 'Tất cả' : 'all' %>"
+    data-label-documents="<%= locale === 'vi' ? 'Tài liệu' : 'documents' %>"
+    data-label-archives="<%= locale === 'vi' ? 'Nén' : 'archives' %>"
+    data-label-media="<%= locale === 'vi' ? 'Media' : 'media' %>"
+    data-label-code="<%= locale === 'vi' ? 'Code' : 'code' %>"
+    data-label-other="<%= locale === 'vi' ? 'Khác' : 'other' %>"
+    data-label-verifying="<%= locale === 'vi' ? 'Đang xác minh…' : 'Verifying…' %>"
+    data-label-verify-error="<%= locale === 'vi' ? 'Xác minh thất bại. Vui lòng thử lại.' : 'Verification failed. Please try again.' %>"
+    data-label-network-error="<%= locale === 'vi' ? 'Lỗi kết nối. Vui lòng thử lại.' : 'Network error. Please try again.' %>"
+  ></script>
+  <script src="/assets/theme.js" nonce="<%= cspNonce %>"></script>
 </body>
 </html>

@@ -44,11 +44,32 @@ router.get('/', async (req, res, next) => {
       secure: config.nodeEnv === 'production',
       maxAge: 30 * 86400 * 1000
     });
+
+    // Adapt to frontend FileRecord shape for client-side rendering
+    const filesJson = files.map((f) => {
+      const key = f.storage?.r2Key || f.storage?.objectKey || f.storage?.relativePath || f.storage?.dropboxPath || f.slug || '';
+      const extMatch = key.match(/\.([a-zA-Z0-9]+)$/);
+      const ext = extMatch ? extMatch[1].toLowerCase() : '';
+      const src = (f.storageProvider || f.storage?.provider || (f.r2?.key ? 'r2' : 'local'));
+      return {
+        slug: f.slug,
+        name: f.title?.[locale] || f.title?.en || key,
+        ext,
+        size: f.sizeBytes || 0,
+        modified: f.updatedAt || '',
+        source: src === 'dropbox' ? 'dropbox' : src === 'local' ? 'local' : 'r2',
+        path: key,
+        downloads: 0,
+        desc: f.summary?.[locale] || f.summary?.en || null
+      };
+    });
+
     res.render('index', {
       locale,
       t: translate,
       provider,
-      files: files.map((item) => attachDisplaySize(item, locale)),
+      filesJson: JSON.stringify(filesJson),
+      turnstileSiteKey: provider?.siteKey || '',
       cspNonce: res.locals.cspNonce
     });
   } catch (error) {
