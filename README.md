@@ -13,7 +13,7 @@ Internet
 
 ### Security model
 - **Public download flow**: Turnstile → server verify → issue short-lived HMAC download token → stream/download from R2.
-- **Admin flow**: `/admin/login` → username + password + hCaptcha → signed session cookie.
+- **Admin flow (from 2026-11-01)**: Cloudflare Access app `download-hub-admin` (`/admin`, `/admin/*`, `/api/admin/*`, policy `t43-admins`, IdP T43iD) → `/admin/login` verifies the Access JWT (`src/lib/t43id-access.js`, AUD in `T43ID_ACCESS_AUD` from t43vault app `download-hub`) → signed session cookie. Password + hCaptcha sign-in is disabled while `T43ID_ACCESS_AUD` is set (unset it to fall back).
 - **Admin APIs**: `/api/admin/r2/*` and related admin ops use session-cookie auth + CSRF protection.
 - **Legacy bearer token**: compatibility only, not the primary production flow.
 
