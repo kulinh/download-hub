@@ -114,6 +114,12 @@ export function buildConfig(env = process.env) {
     rateLimitMaxAttempts: toInt(env.RATE_LIMIT_MAX_ATTEMPTS, 20),
     logRequests: toBool(env.LOG_REQUESTS, false),
     adminBearerToken: env.ADMIN_BEARER_TOKEN || '',
+    // t43id: Cloudflare Access app in front of /admin + /api/admin. AUD set = admin signs in with T43iD only.
+    t43id: {
+      teamDomain: env.T43ID_TEAM_DOMAIN || 't43.cloudflareaccess.com',
+      accessAud: env.T43ID_ACCESS_AUD || '',
+      allowGroups: (env.T43ID_ALLOW_GROUPS || 'admins').split(',').map((g) => g.trim()).filter(Boolean)
+    },
     localStorageEnabled: toBool(env.LOCAL_STORAGE_ENABLED, true)
   };
 

@@ -18,7 +18,8 @@
     "cookie-parser": "^1.4.7",
     "ejs": "^3.1.10",
     "express": "^5.1.0",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "jose": "^6.2.14"
   },
   "devDependencies": {
     "supertest": "^7.1.1",

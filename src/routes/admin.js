@@ -65,6 +65,7 @@ import {
 import { pickLocale } from '../lib/utils.js';
 import { t } from '../lib/i18n.js';
 import { simpleRateLimit } from '../middleware/rate-limit.js';
+import { verifyAccess } from '../lib/t43id-access.js';
 
 const router = express.Router();
 
@@ -114,8 +115,27 @@ function titleFromKey(key) {
 
 // ── Admin login page ─────────────────────────────────────────────────────────
 
-router.get('/admin/login', (req, res) => {
+router.get('/admin/login', async (req, res, next) => {
   const { locale } = pageData(req);
+  // t43id: Cloudflare Access already signed the admin in (T43iD) → issue the app session.
+  if (config.t43id?.accessAud) {
+    try {
+      const id = await verifyAccess(req, {
+        teamDomain: config.t43id.teamDomain,
+        audience: config.t43id.accessAud,
+        allowGroups: config.t43id.allowGroups
+      });
+      if (!id) {
+        return res.status(403).type('text').send('Sign in with T43iD: open /admin through download.888vn.net.');
+      }
+      clearAdminSession(res);
+      issueAdminSession(res);
+      console.log(JSON.stringify({ event: 'admin_login', method: 't43id', email: id.email }));
+      return res.redirect('/admin/r2?lang=' + locale);
+    } catch (err) {
+      return next(err);
+    }
+  }
   // Admin login uses hCaptcha exclusively (not Turnstile — that's for public flow)
   const hcaptcha = getHcaptchaConfig();
   res.render('admin-login', {
@@ -129,6 +149,9 @@ router.get('/admin/login', (req, res) => {
 
 router.post('/admin/login', simpleRateLimit, enforceFormContentType, async (req, res) => {
   const { locale } = pageData(req);
+  if (config.t43id?.accessAud) {
+    return res.status(403).type('text').send('Password sign-in is disabled. Sign in with T43iD.');
+  }
   const { username = '', password = '' } = req.body || {};
   const adminUser = config.admin?.username || '';
   const adminPass = config.admin?.password || '';
@@ -166,6 +189,9 @@ router.post('/admin/login', simpleRateLimit, enforceFormContentType, async (req,
 
 router.post('/admin/logout', (req, res) => {
   clearAdminSession(res);
+  if (config.t43id?.accessAud) {
+    return res.redirect('/cdn-cgi/access/logout'); // ends the Cloudflare Access (T43iD) session too
+  }
   const { locale } = pageData(req);
   res.redirect('/admin/login?lang=' + locale);
 });
