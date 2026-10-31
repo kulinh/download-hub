@@ -1,0 +1,14 @@
+{
+  "name": "download-hub",
+  "build": ["tmp=$(mktemp -d /var/tmp/download-hub-build.XXXXXX) && trap 'rm -rf \"$tmp\"' EXIT && git archive HEAD | tar -x -C \"$tmp\" && cd \"$tmp\" && npm ci --no-audit --no-fund && npm test && npm prune --omit=dev --no-audit --no-fund && tar -czf \"$OUT/app.tar.gz\" package.json package-lock.json src views public node_modules"],
+  "files": ["deploy/download-hub.service", "deploy/10-user.conf", "deploy/node-setup.sh"],
+  "install": {
+    "/etc/systemd/system/download-hub.service": "download-hub.service",
+    "/etc/systemd/system/download-hub.service.d/10-user.conf": "10-user.conf"
+  },
+  "setup": "node-setup.sh",
+  "units": ["download-hub"],
+  "targets": ["HKG-1"],
+  "health": {"cmd": "curl -fsS --max-time 3 http://127.0.0.1:3000/health | grep -q '\"ok\":true' && curl -fsS --max-time 5 -o /dev/null http://127.0.0.1:3000/ && sleep 3 && [ \"$(systemctl show -P NRestarts download-hub)\" = 0 ]", "timeout": "60s"},
+  "keep": 3
+}

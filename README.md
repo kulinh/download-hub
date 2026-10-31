@@ -72,29 +72,26 @@ deploy/
   nginx-download-hub.conf
 ```
 
-## Production deployment (canonical)
-- **Runtime**: Node.js (>=20) launched by PM2
-- **Process manager**: PM2 (see `deploy/ecosystem.config.cjs`)
-- **Reverse proxy**: CloudPanel custom Nginx vhost (`deploy/nginx-download-hub.conf`)
-- **Storage**: Cloudflare R2
+## Production deployment (canonical, since 2026-10-31)
+- **Node**: HKG-1, systemd `download-hub.service` + drop-in `download-hub.service.d/10-user.conf` (user `dlhub`,
+  hardening), both in `deploy/` and installed by **t43deploy**. No PM2, no CloudPanel.
+- **Code**: t43deploy release `/opt/t43deploy/download-hub/current/app` (src, views, public + production
+  `node_modules`, built and tested on HQ-01: `npm ci`, `npm test`, `npm prune --omit=dev`; deps are pure JS).
+- **Data** stays in `/opt/download-hub/{data,src/data,storage}` (absolute paths in the env, `ReadWritePaths`).
+- **Env/secrets**: t43vault app `download-hub` (all keys of the old `.env`), fetched by `ExecStartPre` into
+  `/run/t43vault/download-hub/env`. Change one: `t43vault set download-hub KEY < value` on HQ-01, then
+  `systemctl restart download-hub` on HKG-1. The old `/opt/download-hub/.env.pre-vault` (600) is kept until 2026-11-07.
+- **Reverse proxy**: nginx loopback on HKG-1 behind the Cloudflare Tunnel; **Storage**: Cloudflare R2.
 
+Deploy / update (HQ-01, worktree must be clean, so use a detached one):
 ```bash
-git clone <repo> /opt/download-hub
-cd /opt/download-hub
-cp .env.example .env       # fill production values
-npm ci --omit=dev
-npm run check              # validates env + config
-pm2 start deploy/ecosystem.config.cjs --env production
-pm2 save
+git -C /opt/download-hub worktree add --detach /var/tmp/t43deploy-download-hub HEAD
+t43deploy -C /var/tmp/t43deploy-download-hub          # health: /health ok, / renders, no restarts
+git -C /opt/download-hub worktree remove /var/tmp/t43deploy-download-hub
+t43deploy status -C /opt/download-hub                 # release per node, is it HEAD
+t43deploy rollback -C /opt/download-hub HKG-1         # previous release
 ```
-
-To update:
-```bash
-cd /opt/download-hub
-git pull
-npm ci --omit=dev
-pm2 restart download-hub
-```
+`deploy/ecosystem.config.cjs` is the old PM2 config, kept for reference only.
 
 ## Required production env
 Minimum required values:

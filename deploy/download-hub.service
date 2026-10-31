@@ -1,0 +1,26 @@
+# Installed by t43deploy (t43deploy.json). Code = release in /opt/t43deploy/download-hub/current/app;
+# data stays in /opt/download-hub/{data,src/data,storage} (absolute paths in the env).
+# Env (incl. secrets) from t43vault app download-hub, no .env on the node. User/hardening: 10-user.conf.
+[Unit]
+Description=Download Hub (Node.js app on :3000)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/t43deploy/download-hub/current/app
+Environment=NODE_ENV=production
+# Vault unreachable -> fetch uses the node's last-good cache. "+" = run as root.
+ExecStartPre=+/usr/local/bin/t43vault fetch download-hub -env /run/t43vault/download-hub/env -owner root:dlhub -mode 0640
+# The leading "-" is required: /run is empty after a reboot, the file is written by ExecStartPre above.
+EnvironmentFile=-/run/t43vault/download-hub/env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=download-hub
+
+[Install]
+WantedBy=multi-user.target
