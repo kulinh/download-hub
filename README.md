@@ -74,22 +74,19 @@ deploy/
 
 ## Production deployment (canonical, since 2026-10-31)
 - **Node**: HKG-1, systemd `download-hub.service` + drop-in `download-hub.service.d/10-user.conf` (user `dlhub`,
-  hardening), both in `deploy/` and installed by **t43deploy**. No PM2, no CloudPanel.
-- **Code**: t43deploy release `/opt/t43deploy/download-hub/current/app` (src, views, public + production
-  `node_modules`, built and tested on HQ-01: `npm ci`, `npm test`, `npm prune --omit=dev`; deps are pure JS).
+  hardening), both in `deploy/`. No PM2, no CloudPanel.
+- **Code**: `/opt/download-hub/app` (src, views, public + production `node_modules`, built and tested on HQ-01:
+  `npm ci`, `npm test`, `npm prune --omit=dev`; deps are pure JS). The previous build is kept in `app.prev`.
 - **Data** stays in `/opt/download-hub/{data,src/data,storage}` (absolute paths in the env, `ReadWritePaths`).
 - **Env/secrets**: t43vault app `download-hub` (all keys of the old `.env`), fetched by `ExecStartPre` into
   `/run/t43vault/download-hub/env`. Change one: `t43vault set download-hub KEY < value` on HQ-01, then
-  `systemctl restart download-hub` on HKG-1. The old `/opt/download-hub/.env.pre-vault` (600) is kept until 2026-11-07.
+  `systemctl restart download-hub` on HKG-1.
 - **Reverse proxy**: nginx loopback on HKG-1 behind the Cloudflare Tunnel; **Storage**: Cloudflare R2.
 
-Deploy / update (HQ-01, worktree must be clean, so use a detached one):
+Deploy / update (HQ-01, deploys the committed HEAD):
 ```bash
-git -C /opt/download-hub worktree add --detach /var/tmp/t43deploy-download-hub HEAD
-t43deploy -C /var/tmp/t43deploy-download-hub          # health: /health ok, / renders, no restarts
-git -C /opt/download-hub worktree remove /var/tmp/t43deploy-download-hub
-t43deploy status -C /opt/download-hub                 # release per node, is it HEAD
-t43deploy rollback -C /opt/download-hub HKG-1         # previous release
+deploy/deploy.sh            # build + test, swap app, restart; health fails -> app.prev comes back
+deploy/deploy.sh rollback   # swap app and app.prev
 ```
 `deploy/ecosystem.config.cjs` is the old PM2 config, kept for reference only.
 
