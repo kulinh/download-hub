@@ -1,30 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
+import { generateKeyPair } from 'jose';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import adminRouter from '../src/routes/admin.js';
 import { reloadConfig } from '../src/lib/config.js';
-import { createHmacToken } from '../src/lib/utils.js';
+import { AUD, installAccessKeys, signAccessJwt } from './helpers/access.js';
 
-const TEST_SESSION_SECRET = 'test-admin-session-secret-32chars!!';
-const TEST_ADMIN_USER = 'testadmin';
-const TEST_ADMIN_PASS = 'testpassword';
-
-function makeValidAdminCookie() {
-  const expiresAt = Date.now() + 3600 * 1000;
-  const payload = { role: 'admin', exp: expiresAt };
-  return createHmacToken(payload, TEST_SESSION_SECRET);
-}
-
-/**
- * CSRF token is derived as the last 16 characters of the session cookie.
- * This mirrors the logic in requireAdminSession middleware.
- */
-function makeCsrfToken(sessionToken) {
-  return sessionToken.slice(-16);
+async function makeValidAdminCookie() {
+  return signAccessJwt();
 }
 
 function makeApp() {
@@ -49,6 +36,8 @@ describe('admin ops routes', () => {
   let storageDir;
   let indexPath;
   let app;
+
+  beforeAll(installAccessKeys);
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'download-hub-admin-'));
@@ -87,11 +76,7 @@ describe('admin ops routes', () => {
       DOWNLOAD_TOKEN_SECRET: 'dev-secret-change-me',
       TURNSTILE_ENABLED: 'false',
       HCAPTCHA_ENABLED: 'false',
-      ADMIN_USERNAME: TEST_ADMIN_USER,
-      ADMIN_PASSWORD: TEST_ADMIN_PASS,
-      ADMIN_SESSION_SECRET: TEST_SESSION_SECRET,
-      ADMIN_SESSION_TTL_SECONDS: '3600',
-      ADMIN_COOKIE_NAME: 'download_hub_admin_sess',
+      T43ID_ACCESS_AUD: AUD,
       ADMIN_BEARER_TOKEN: 'admin-secret',
       FILES_STORAGE_PATH: storageDir,
       FILES_INDEX_PATH: indexPath
@@ -107,10 +92,10 @@ describe('admin ops routes', () => {
   });
 
   it('returns disk metadata through admin files API with valid session cookie', async () => {
-    const sessionToken = makeValidAdminCookie();
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .get('/api/admin/files')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`);
+      .set('Cf-Access-Jwt-Assertion', sessionToken);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -121,12 +106,10 @@ describe('admin ops routes', () => {
   });
 
   it('syncs files.json from disk and updates checksum + size', async () => {
-    const sessionToken = makeValidAdminCookie();
-    const csrfToken = makeCsrfToken(sessionToken);
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken)
+      .set('Cf-Access-Jwt-Assertion', sessionToken)
       .set('Content-Type', 'application/json')
       .send('{}');
 
@@ -143,12 +126,10 @@ describe('admin ops routes', () => {
     await fs.mkdir(path.join(storageDir, 'android'), { recursive: true });
     await fs.writeFile(path.join(storageDir, 'android', 'android-pack-v3.apk'), 'apk-data');
 
-    const sessionToken = makeValidAdminCookie();
-    const csrfToken = makeCsrfToken(sessionToken);
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken)
+      .set('Cf-Access-Jwt-Assertion', sessionToken)
       .set('Content-Type', 'application/json')
       .send('{}');
 
@@ -163,40 +144,49 @@ describe('admin ops routes', () => {
     expect(created.sizeBytes).toBe(8);
   });
 
-  it('rejects POST requests without valid CSRF token', async () => {
-    const sessionToken = makeValidAdminCookie();
+  it('blocks cross-site POST requests', async () => {
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/sync')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', 'invalid-csrf-token')
+      .set('Cf-Access-Jwt-Assertion', sessionToken)
+      .set('Sec-Fetch-Site', 'cross-site')
       .set('Content-Type', 'application/json')
       .send('{}');
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe('csrf_token_invalid');
+    expect(res.body.error).toBe('cross_site_request_blocked');
   });
 
-  it('login clears both root and legacy /admin cookie paths before issuing a fresh session cookie', async () => {
+  it('accepts the CF_Authorization cookie', async () => {
     const res = await request(app)
-      .post('/admin/login')
-      .type('form')
-      .send({ username: TEST_ADMIN_USER, password: TEST_ADMIN_PASS });
-
-    expect(res.status).toBe(302);
-
-    const setCookie = res.headers['set-cookie'] || [];
-    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
-    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
-    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=') && v.includes('Path=/;') && !v.includes('download_hub_admin_sess=;'))).toBe(true);
+      .get('/api/admin/files')
+      .set('Cookie', `CF_Authorization=${await signAccessJwt()}`);
+    expect(res.status).toBe(200);
   });
 
-  it('logout clears both root and legacy /admin cookie paths', async () => {
+  it('rejects a bad audience, wrong group, foreign key and garbage token on API and page', async () => {
+    const other = (await generateKeyPair('RS256')).privateKey;
+    const tokens = [
+      await signAccessJwt({ aud: 'other' }),
+      await signAccessJwt({ groups: ['viewer'] }),
+      await signAccessJwt({ key: other }),
+      'garbage'
+    ];
+    for (const token of tokens) {
+      const api = await request(app).get('/api/admin/r2/files').set('Cf-Access-Jwt-Assertion', token);
+      expect(api.status).toBe(401);
+      const page = await request(app).get('/admin/r2').set('Cf-Access-Jwt-Assertion', token);
+      expect(page.status).toBe(403);
+    }
+  });
+
+  it('has no password login route', async () => {
+    expect((await request(app).get('/admin/login')).status).toBe(404);
+    expect((await request(app).post('/admin/login').type('form').send({ username: 'a', password: 'b' })).status).toBe(404);
+  });
+
+  it('logout ends the Access session', async () => {
     const res = await request(app).post('/admin/logout');
-
-    expect(res.status).toBe(302);
-
-    const setCookie = res.headers['set-cookie'] || [];
-    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/;'))).toBe(true);
-    expect(setCookie.some((v) => v.includes('download_hub_admin_sess=;') && v.includes('Path=/admin;'))).toBe(true);
+    expect(res.headers.location).toBe('/cdn-cgi/access/logout');
   });
 });

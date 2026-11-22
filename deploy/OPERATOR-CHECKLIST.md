@@ -6,7 +6,7 @@ Use this checklist for the **primary deployment model**:
 - CloudPanel only as reverse proxy
 - Cloudflare R2 as primary storage
 - Turnstile for public flow
-- username + password + hCaptcha + session cookie for admin
+- Cloudflare Access (T43iD) JWT for admin
 
 ## 1) DNS + Reverse Proxy
 - `download.888vn.net` points to the correct VPS IP
@@ -26,16 +26,11 @@ Must be set:
 - `APP_BASE_URL=https://download.888vn.net`
 - `APP_HOSTNAME=download.888vn.net`
 - `DOWNLOAD_TOKEN_SECRET`
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
-- `ADMIN_SESSION_SECRET`
 - `TURNSTILE_*`
-- `HCAPTCHA_*`
 - `R2_*`
 
 ## 4) Cloudflare R2 Configuration
 - bucket exists
-- credentials valid
 - bucket name correct
 - upload flow works from `/admin/r2`
 - file list returns expected objects
@@ -49,10 +44,7 @@ Must be set:
 - expired token returns 403
 
 ## 6) Admin Operations Flow
-- `/admin/login` loads
-- hCaptcha renders
-- username/password login succeeds
-- session cookie is set
+- `/admin` redirects to Cloudflare Access when signed out
 - `/admin/r2` loads
 - metadata edit works
 - publish/unpublish works

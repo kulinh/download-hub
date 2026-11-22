@@ -12,7 +12,7 @@ Node.js (Express 5, ESM, single process) download portal, repo `kulinh/download-
 
 ## Secrets and auth
 - Env (incl. secrets) lives in t43vault app `download-hub` (grant hkg-1); there is no `.env` on the node. Change one key: `t43vault set download-hub KEY < value`, then `systemctl restart download-hub`.
-- Admin sign-in is T43iD through a Cloudflare Access app on `/admin`, `/admin/*`, `/api/admin/*`; the Access JWT is verified with `T43ID_ACCESS_AUD` (vault). When that variable is set, password + hCaptcha sign-in is off. `ADMIN_BEARER_TOKEN` is off in production by design, so a 401 at `/api/admin` is correct.
+- Admin sign-in is T43iD only: Cloudflare Access app on `/admin`, `/admin/*`, `/api/admin/*` (policy `t43-admins`). The app verifies the Access JWT (`T43ID_ACCESS_AUD`, required in production, in vault) on every admin page and API request; there is no password, hCaptcha or session-cookie login. The app listens on `127.0.0.1:3000` only. `ADMIN_BEARER_TOKEN` is off in production by design, so a 401 at `/api/admin` without a JWT is correct.
 
 ## Traps
 - Under `ProtectSystem=strict` any new writable path must be added to `ReadWritePaths` in `10-user.conf`.

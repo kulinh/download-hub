@@ -87,13 +87,6 @@ export function buildConfig(env = process.env) {
       secretKey: env.HCAPTCHA_SECRET_KEY || '',
       expectedHostname: env.HCAPTCHA_EXPECTED_HOSTNAME || env.APP_HOSTNAME || 'localhost'
     },
-    admin: {
-      username: env.ADMIN_USERNAME || '',
-      password: env.ADMIN_PASSWORD || '',
-      sessionSecret: env.ADMIN_SESSION_SECRET || env.DOWNLOAD_TOKEN_SECRET || 'dev-secret-change-me',
-      sessionTtlSeconds: toInt(env.ADMIN_SESSION_TTL_SECONDS, 3600),
-      cookieName: env.ADMIN_COOKIE_NAME || 'download_hub_admin_sess'
-    },
     r2: {
       enabled: toBool(env.R2_ENABLED, false),
       accountId: env.R2_ACCOUNT_ID || '',
@@ -114,7 +107,7 @@ export function buildConfig(env = process.env) {
     rateLimitMaxAttempts: toInt(env.RATE_LIMIT_MAX_ATTEMPTS, 20),
     logRequests: toBool(env.LOG_REQUESTS, false),
     adminBearerToken: env.ADMIN_BEARER_TOKEN || '',
-    // t43id: Cloudflare Access app in front of /admin + /api/admin. AUD set = admin signs in with T43iD only.
+    // t43id: Cloudflare Access app in front of /admin + /api/admin. 
     t43id: {
       teamDomain: env.T43ID_TEAM_DOMAIN || 't43.cloudflareaccess.com',
       accessAud: env.T43ID_ACCESS_AUD || '',
@@ -144,17 +137,11 @@ export function buildConfig(env = process.env) {
     if (!cfg.downloadTokenSecret || isPlaceholderSecret(cfg.downloadTokenSecret)) {
       throw new Error('DOWNLOAD_TOKEN_SECRET is required and must not be a placeholder in production');
     }
-    if (!cfg.admin.sessionSecret || isPlaceholderSecret(cfg.admin.sessionSecret)) {
-      throw new Error('ADMIN_SESSION_SECRET is required and must not be a placeholder in production');
-    }
     if (!cfg.turnstile.enabled || !cfg.turnstile.siteKey || !cfg.turnstile.secretKey) {
       throw new Error('Cloudflare Turnstile (TURNSTILE_ENABLED, TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY) must be configured in production');
     }
-    if (!cfg.hcaptcha.enabled || !cfg.hcaptcha.siteKey || !cfg.hcaptcha.secretKey) {
-      throw new Error('hCaptcha (HCAPTCHA_ENABLED, HCAPTCHA_SITE_KEY, HCAPTCHA_SECRET_KEY) must be configured in production for admin panel');
-    }
-    if (!cfg.admin.username || !cfg.admin.password) {
-      throw new Error('ADMIN_USERNAME and ADMIN_PASSWORD must be set in production');
+    if (!cfg.t43id.accessAud) {
+      throw new Error('T43ID_ACCESS_AUD is required in production (admin sign-in is T43iD only)');
     }
     if (cfg.r2.enabled) {
       if (!hasR2Creds) {

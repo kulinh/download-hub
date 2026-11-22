@@ -8,7 +8,6 @@ This file is the **canonical deployment guide** for `download-hub`.
 - **Reverse proxy / TLS**: CloudPanel Nginx on host (`deploy/nginx-download-hub.conf`)
 - **Primary storage**: Cloudflare R2
 - **Public anti-bot**: Cloudflare Turnstile
-- **Admin security**: username + password + hCaptcha + session cookie
 
 ## 1. Prerequisites
 - Node.js 20+ and npm on the host
@@ -16,7 +15,6 @@ This file is the **canonical deployment guide** for `download-hub`.
 - CloudPanel site / vhost for `downloads.example.com`
 - Cloudflare R2 bucket and API credentials
 - Turnstile site/secret key
-- hCaptcha site/secret key
 
 ## 2. Prepare `.env`
 Copy and edit:
@@ -31,19 +29,12 @@ APP_BASE_URL=https://downloads.example.com
 APP_HOSTNAME=downloads.example.com
 DOWNLOAD_TOKEN_SECRET=<long-random-secret>
 
-ADMIN_USERNAME=<admin-user>
-ADMIN_PASSWORD=<strong-password>
-ADMIN_SESSION_SECRET=<long-random-secret>
 
 TURNSTILE_ENABLED=true
 TURNSTILE_SITE_KEY=...
 TURNSTILE_SECRET_KEY=...
 TURNSTILE_ACTION=download_gate
 
-HCAPTCHA_ENABLED=true
-HCAPTCHA_SITE_KEY=...
-HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=downloads.example.com
 
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
@@ -92,8 +83,6 @@ nginx -t && systemctl reload nginx
 - homepage renders
 - detail page renders
 - Turnstile appears on public flow
-- admin login page renders hCaptcha
-- admin login succeeds with username/password+hCaptcha
 - `/admin/r2` opens after login
 - R2 file list loads
 - upload-url + upload-confirm flow works
@@ -108,14 +97,10 @@ nginx -t && systemctl reload nginx
 - restart after env change: `pm2 restart download-hub`
 
 ### Admin login captcha fails
-- verify hCaptcha keys
 - verify expected hostname
 - restart after env change
 
 ### Admin login succeeds but `/admin/r2` fails
-- check session cookie
-- check `ADMIN_SESSION_SECRET`
-- check CSRF header/body handling in browser requests
 
 ### R2 operations fail
 - verify `R2_ENABLED=true`
@@ -131,9 +116,7 @@ nginx -t && systemctl reload nginx
 ### Secret rotation
 Rotate and `pm2 restart download-hub` after changing:
 - `DOWNLOAD_TOKEN_SECRET`
-- `ADMIN_SESSION_SECRET`
 - Turnstile secret
-- hCaptcha secret
 - R2 credentials
 
 ### Backup scope

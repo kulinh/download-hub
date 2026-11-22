@@ -2,9 +2,7 @@
  * admin.js — Admin routes: login/logout + R2 management APIs
  *
  * Routes:
- *   GET  /admin/login         → login page (with hCaptcha by default)
- *   POST /admin/login         → authenticate
- *   POST /admin/logout        → destroy session
+ *   POST /admin/logout        → end the Cloudflare Access session
  *   GET  /admin               → redirect to /admin/r2
  *   GET  /admin/r2            → Storage management UI (R2 or local)
  *
@@ -34,8 +32,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { config } from '../lib/config.js';
 import { getStorageDownloadName, getStorageObjectKey, getLocalRelativePath, normalizeObjectKey } from '../lib/storage-metadata.js';
-import { getHcaptchaConfig, verifyHcaptchaToken } from '../lib/captcha.js';
-import { enforceFormContentType, enforceJsonContentType } from '../middleware/security.js';
+import { enforceJsonContentType } from '../middleware/security.js';
 import {
   getAllFiles,
   getFiles,
@@ -55,17 +52,12 @@ import { isR2Configured, listR2Objects, deleteR2Object, getPresignedDownloadUrl 
 import { getPresignedUploadUrl as getSdkPresignedUploadUrl, isR2Enabled, shouldUseLocalStorage, uploadBufferToR2 } from '../lib/r2-storage.js';
 import { isDropboxConfigured, getDropboxMetadata, uploadToDropbox } from '../lib/dropbox-client.js';
 import {
-  clearAdminSession,
-  issueAdminSession,
   requireAdminSession,
   requireAdminSessionOrToken,
-  requireAdminSessionPage,
-  validateAdminCredentials
+  requireAdminSessionPage
 } from '../middleware/admin-auth.js';
 import { pickLocale } from '../lib/utils.js';
 import { t } from '../lib/i18n.js';
-import { simpleRateLimit } from '../middleware/rate-limit.js';
-import { verifyAccess } from '../lib/t43id-access.js';
 
 const router = express.Router();
 
@@ -113,87 +105,8 @@ function titleFromKey(key) {
     .join(' ');
 }
 
-// ── Admin login page ─────────────────────────────────────────────────────────
-
-router.get('/admin/login', async (req, res, next) => {
-  const { locale } = pageData(req);
-  // t43id: Cloudflare Access already signed the admin in (T43iD) → issue the app session.
-  if (config.t43id?.accessAud) {
-    try {
-      const id = await verifyAccess(req, {
-        teamDomain: config.t43id.teamDomain,
-        audience: config.t43id.accessAud,
-        allowGroups: config.t43id.allowGroups
-      });
-      if (!id) {
-        return res.status(403).type('text').send('Sign in with T43iD: open /admin through download.888vn.net.');
-      }
-      clearAdminSession(res);
-      issueAdminSession(res);
-      console.log(JSON.stringify({ event: 'admin_login', method: 't43id', email: id.email }));
-      return res.redirect('/admin/r2?lang=' + locale);
-    } catch (err) {
-      return next(err);
-    }
-  }
-  // Admin login uses hCaptcha exclusively (not Turnstile — that's for public flow)
-  const hcaptcha = getHcaptchaConfig();
-  res.render('admin-login', {
-    locale,
-    hcaptcha,
-    error: req.query.error || null,
-    csrfToken: '',
-    cspNonce: res.locals.cspNonce
-  });
-});
-
-router.post('/admin/login', simpleRateLimit, enforceFormContentType, async (req, res) => {
-  const { locale } = pageData(req);
-  if (config.t43id?.accessAud) {
-    return res.status(403).type('text').send('Password sign-in is disabled. Sign in with T43iD.');
-  }
-  const { username = '', password = '' } = req.body || {};
-  const adminUser = config.admin?.username || '';
-  const adminPass = config.admin?.password || '';
-
-  if (!adminUser && !adminPass) {
-    return res.redirect('/admin/login?error=admin_disabled');
-  }
-
-  if (!password) {
-    return res.redirect('/admin/login?error=invalid_credentials');
-  }
-
-  // Verify hCaptcha if configured (admin panel uses hCaptcha, not Turnstile)
-  const hcaptcha = getHcaptchaConfig();
-  if (hcaptcha) {
-    try {
-      const captcha = await verifyHcaptchaToken(req);
-      if (!captcha.success) {
-        return res.redirect('/admin/login?error=captcha_failed');
-      }
-    } catch (err) {
-      return res.redirect('/admin/login?error=captcha_failed');
-    }
-  }
-
-  // Validate credentials
-  if (!validateAdminCredentials(username || adminUser, password)) {
-    return res.redirect('/admin/login?error=invalid_credentials');
-  }
-
-  clearAdminSession(res);
-  issueAdminSession(res);
-  res.redirect('/admin/r2?lang=' + locale);
-});
-
-router.post('/admin/logout', (req, res) => {
-  clearAdminSession(res);
-  if (config.t43id?.accessAud) {
-    return res.redirect('/cdn-cgi/access/logout'); // ends the Cloudflare Access (T43iD) session too
-  }
-  const { locale } = pageData(req);
-  res.redirect('/admin/login?lang=' + locale);
+router.post('/admin/logout', (_req, res) => {
+  res.redirect('/cdn-cgi/access/logout');
 });
 
 // ── Admin redirect ────────────────────────────────────────────────────────────
@@ -211,7 +124,6 @@ router.get('/admin/r2', requireAdminSessionPage, (req, res, next) => {
     res.render('admin-r2', {
       locale,
       t: translate,
-      csrfToken: res.locals.adminCsrfToken || '',
       cspNonce: res.locals.cspNonce,
       localStorageEnabled: config.storageProviders?.local,
       r2Enabled: isR2Enabled(),

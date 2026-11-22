@@ -6,14 +6,14 @@
 - CloudPanel as reverse proxy only
 - Cloudflare R2 as primary storage
 - Turnstile for public download verification
-- username + password + hCaptcha + session-cookie auth for admin
+- Cloudflare Access (T43iD) auth for admin
 
 ## Canonical production story
 - Run app under PM2 (`deploy/ecosystem.config.cjs`)
 - Bind app to `127.0.0.1:3000`
 - Let CloudPanel terminate HTTPS and proxy to the local Node.js process
 - Store downloadable artifacts in R2
-- Use `/admin/login` → `/admin/r2` for admin workflows
+- Use `/admin` → `/admin/r2` for admin workflows
 
 ## Current limits
 - Demo/sample catalog data may still exist in repo and must not be treated as production truth
@@ -29,7 +29,6 @@
 - `/health` returns 200
 - homepage + detail page render
 - Turnstile works on public download flow
-- `/admin/login` renders hCaptcha
 - admin login succeeds and lands on `/admin/r2`
 - R2 inventory loads
 - at least one real file downloads successfully

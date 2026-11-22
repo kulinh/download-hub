@@ -1,6 +1,6 @@
 # download-hub
 
-> Download hub chạy trực tiếp bằng **Node.js + PM2** sau **CloudPanel Nginx reverse proxy**, lưu file trên **Cloudflare R2**, bảo vệ public download bằng **Cloudflare Turnstile**, và bảo vệ admin bằng **username + password + hCaptcha + session cookie**.
+> Download hub runs directly on **Node.js** behind an Nginx reverse proxy, stores files on **Cloudflare R2**, protects public downloads with **Cloudflare Turnstile**, and protects the admin with **Cloudflare Access (T43iD)**.
 
 ## Canonical Architecture (R2 Primary)
 
@@ -13,8 +13,8 @@ Internet
 
 ### Security model
 - **Public download flow**: Turnstile → server verify → issue short-lived HMAC download token → stream/download from R2.
-- **Admin flow (from 2026-11-01)**: Cloudflare Access app `download-hub-admin` (`/admin`, `/admin/*`, `/api/admin/*`, policy `t43-admins`, IdP T43iD) → `/admin/login` verifies the Access JWT (`src/lib/t43id-access.js`, AUD in `T43ID_ACCESS_AUD` from t43vault app `download-hub`) → signed session cookie. Password + hCaptcha sign-in is disabled while `T43ID_ACCESS_AUD` is set (unset it to fall back).
-- **Admin APIs**: `/api/admin/r2/*` and related admin ops use session-cookie auth + CSRF protection.
+- **Admin flow**: Cloudflare Access app `download-hub-admin` (`/admin`, `/admin/*`, `/api/admin/*`, policy `t43-admins`, IdP T43iD). The app verifies the Access JWT on every admin request (`src/lib/t43id-access.js`, AUD in `T43ID_ACCESS_AUD` from t43vault app `download-hub`, required in production).
+- **Admin APIs**: `/api/admin/*` require a valid Access JWT; cross-site mutating requests are rejected.
 - **Legacy bearer token**: compatibility only, not the primary production flow.
 
 ## Stack
@@ -23,7 +23,7 @@ Internet
 - Express 5 + EJS
 - Helmet + CSP nonce
 - Cloudflare Turnstile (public)
-- hCaptcha (admin login)
+- Cloudflare Access (T43iD) for admin
 - Cloudflare R2 via S3-compatible API
 
 ## Main features
@@ -31,7 +31,7 @@ Internet
 - Detail page per file
 - Turnstile-protected public download flow
 - Short-lived HMAC token to reduce hotlinking
-- Admin login with hard auth + hCaptcha
+- Admin sign-in with T43iD (Cloudflare Access)
 - Admin R2 panel for listing objects, presigned upload, metadata editing, publish/unpublish workflow
 - Health endpoint: `/health`
 
@@ -44,8 +44,6 @@ Internet
 - `GET /health`
 
 ### Admin
-- `GET /admin/login`
-- `POST /admin/login`
 - `POST /admin/logout`
 - `GET /admin/r2`
 - `GET /api/admin/r2/status`
@@ -99,19 +97,15 @@ APP_BASE_URL=https://downloads.example.com
 APP_HOSTNAME=downloads.example.com
 DOWNLOAD_TOKEN_SECRET=<long-random-secret>
 
-ADMIN_USERNAME=<admin-user>
-ADMIN_PASSWORD=<strong-password>
-ADMIN_SESSION_SECRET=<long-random-secret>
+T43ID_TEAM_DOMAIN=t43.cloudflareaccess.com
+T43ID_ACCESS_AUD=<access-app-aud-tag>
+T43ID_ALLOW_GROUPS=admins
 
 TURNSTILE_ENABLED=true
 TURNSTILE_SITE_KEY=...
 TURNSTILE_SECRET_KEY=...
 TURNSTILE_ACTION=download_gate
 
-HCAPTCHA_ENABLED=true
-HCAPTCHA_SITE_KEY=...
-HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=downloads.example.com
 
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
@@ -127,11 +121,9 @@ Use the nginx sample in:
 - `deploy/nginx-download-hub.conf`
 
 ## Admin workflow
-1. Visit `/admin/login`
-2. Complete **hCaptcha**
-3. Authenticate with **username + password**
-4. Enter `/admin/r2`
-5. Upload to R2, sync object metadata, review draft records, publish entries
+1. Open `/admin` (Cloudflare Access signs you in with T43iD)
+2. Use `/admin/r2`
+3. Upload to R2, sync object metadata, review draft records, publish entries
 
 ## Local development
 ```bash

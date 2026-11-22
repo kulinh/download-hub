@@ -20,7 +20,7 @@ app.use(requestLogger(!isProduction())); // verbose request logs in dev only
 app.set('view engine', 'ejs');
 app.set('views', path.resolve(__dirname, '../views'));
 // Body parsers:
-// - urlencoded: global, for HTML form submissions (POST /admin/login, etc.)
+// - urlencoded: global, for HTML form submissions (public verify form)
 // - JSON: scoped to /api/* only — admin API routes send and receive application/json.
 //   Do NOT move express.json() to global scope; enforceJsonContentType in admin.js
 //   acts as the content-type allowlist guard for mutating /api/admin/* requests.
@@ -90,8 +90,8 @@ app.use((error, req, res, _next) => {
   });
 });
 
-const server = app.listen(config.port, () => {
-  console.log(`download-hub listening on :${config.port} [${config.nodeEnv}]`);
+const server = app.listen(config.port, '127.0.0.1', () => {
+  console.log(`download-hub listening on 127.0.0.1:${config.port} [${config.nodeEnv}]`);
 });
 
 registerGracefulShutdown(server);

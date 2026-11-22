@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
@@ -7,23 +7,12 @@ import os from 'node:os';
 import path from 'node:path';
 import adminRouter from '../src/routes/admin.js';
 import { reloadConfig } from '../src/lib/config.js';
-import { createHmacToken } from '../src/lib/utils.js';
+import { AUD, installAccessKeys, signAccessJwt } from './helpers/access.js';
 import * as r2Client from '../src/lib/r2-client.js';
 import * as r2Storage from '../src/lib/r2-storage.js';
 
-const TEST_SESSION_SECRET = 'test-admin-session-secret-32chars!!';
-const TEST_ADMIN_USER = 'testadmin';
-const TEST_ADMIN_PASS = 'testpassword';
-
-function makeValidAdminCookie() {
-  const expiresAt = Date.now() + 3600 * 1000;
-  const payload = { role: 'admin', exp: expiresAt };
-  return createHmacToken(payload, TEST_SESSION_SECRET);
-}
-
-/** Derive CSRF token the same way requireAdminSession does: last 16 chars of session token */
-function csrfFromSession(sessionToken) {
-  return sessionToken.slice(-16);
+async function makeValidAdminCookie() {
+  return signAccessJwt();
 }
 
 function makeApp() {
@@ -49,6 +38,8 @@ describe('admin R2 routes', () => {
   let indexPath;
   let app;
 
+  beforeAll(installAccessKeys);
+
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'download-hub-r2-'));
     indexPath = path.join(tmpDir, 'files.json');
@@ -59,11 +50,7 @@ describe('admin R2 routes', () => {
       DOWNLOAD_TOKEN_SECRET: 'dev-secret-change-me',
       TURNSTILE_ENABLED: 'false',
       HCAPTCHA_ENABLED: 'false',
-      ADMIN_USERNAME: TEST_ADMIN_USER,
-      ADMIN_PASSWORD: TEST_ADMIN_PASS,
-      ADMIN_SESSION_SECRET: TEST_SESSION_SECRET,
-      ADMIN_SESSION_TTL_SECONDS: '3600',
-      ADMIN_COOKIE_NAME: 'download_hub_admin_sess',
+      T43ID_ACCESS_AUD: AUD,
       ADMIN_BEARER_TOKEN: 'admin-secret',
       FILES_INDEX_PATH: indexPath,
       R2_ENABLED: 'true',
@@ -91,10 +78,10 @@ describe('admin R2 routes', () => {
   });
 
   it('lists merged r2 files when session cookie is present', async () => {
-    const sessionToken = makeValidAdminCookie();
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .get('/api/admin/r2/files')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`);
+      .set('Cf-Access-Jwt-Assertion', sessionToken);
 
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
@@ -103,12 +90,10 @@ describe('admin R2 routes', () => {
   });
 
   it('returns presigned upload url', async () => {
-    const sessionToken = makeValidAdminCookie();
-    const csrfToken = csrfFromSession(sessionToken);
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/r2/upload-url')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken)
+      .set('Cf-Access-Jwt-Assertion', sessionToken)
       .send({ filename: 'bar.exe', contentType: 'application/vnd.microsoft.portable-executable' });
 
     expect(res.status).toBe(200);
@@ -118,12 +103,10 @@ describe('admin R2 routes', () => {
   });
 
   it('rejects upload-url POST with wrong content-type (enforceJsonContentType)', async () => {
-    const sessionToken = makeValidAdminCookie();
-    const csrfToken = csrfFromSession(sessionToken);
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .post('/api/admin/r2/upload-url')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken)
+      .set('Cf-Access-Jwt-Assertion', sessionToken)
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send('filename=bar.exe');
 
@@ -132,12 +115,10 @@ describe('admin R2 routes', () => {
   });
 
   it('rejects PATCH publish with wrong content-type (enforceJsonContentType)', async () => {
-    const sessionToken = makeValidAdminCookie();
-    const csrfToken = csrfFromSession(sessionToken);
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .patch('/api/admin/r2/files/foo/publish')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken)
+      .set('Cf-Access-Jwt-Assertion', sessionToken)
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send('published=true');
 
@@ -171,12 +152,10 @@ describe('admin R2 routes', () => {
     ];
     await writeJson(indexPath, seed);
 
-    const sessionToken = makeValidAdminCookie();
-    const csrfToken = csrfFromSession(sessionToken);
+    const sessionToken = await makeValidAdminCookie();
     const res = await request(app)
       .delete('/api/admin/r2/files/foo')
-      .set('Cookie', `download_hub_admin_sess=${sessionToken}`)
-      .set('X-CSRF-Token', csrfToken);
+      .set('Cf-Access-Jwt-Assertion', sessionToken);
 
     expect(res.status).toBe(200);
     expect(res.body.deleted).toBe('foo');

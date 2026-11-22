@@ -74,7 +74,7 @@ export function applyAppSecurity(app) {
 }
 
 /**
- * enforceFormContentType — used exclusively on POST /admin/login (HTML form submission).
+ * enforceFormContentType — used on public HTML form submissions.
  * Rejects any content-type that is not application/x-www-form-urlencoded.
  * Do NOT apply this to /api/* routes; those routes expect application/json
  * (see enforceJsonContentType below).

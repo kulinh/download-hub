@@ -18,8 +18,7 @@ Download Hub là một web app Node.js/Express phục vụ hai mục đích:
 | Storage (remote) | Cloudflare R2 (S3-compatible, AWS SDK v3) |
 | Storage (local) | Local filesystem (`./storage/files/`) |
 | Captcha (public) | Cloudflare Turnstile |
-| Captcha (admin) | hCaptcha |
-| Auth (admin) | HMAC-signed session cookie + CSRF |
+| Auth (admin) | Cloudflare Access (T43iD) JWT verified per request |
 | Config | Environment variables (load via `--env-file=.env`) |
 
 ---
@@ -34,7 +33,7 @@ download-hub/
 │   │   ├── site.js            # Public routes (/, /download/:slug, /files/:slug, /api/verify/:slug)
 │   │   └── admin.js           # Admin routes (/admin/*, /api/admin/*)
 │   ├── middleware/
-│   │   ├── admin-auth.js      # Session issuance/validation, CSRF, credential check
+│   │   ├── admin-auth.js      # Access JWT verification for admin pages and APIs
 │   │   ├── security.js        # Helmet CSP, rate-limit helpers, bearer token guard
 │   │   ├── rate-limit.js      # Simple in-memory rate limiter
 │   │   ├── logging.js         # Request logger
@@ -46,7 +45,7 @@ download-hub/
 │       ├── r2-storage.js      # Higher-level R2 helpers (upload buffer, presigned PUT, flags)
 │       ├── storage-metadata.js # Resolve storage provider/key/path from catalog entry
 │       ├── download-token.js  # Issue + verify short-lived HMAC download tokens
-│       ├── captcha.js         # Turnstile (public) + hCaptcha (admin) verify
+│       ├── captcha.js         # Turnstile (public) + hCaptcha fallback verify
 │       ├── i18n.js            # vi/en translation strings
 │       └── utils.js           # HMAC token helpers, IP, locale, formatBytes
 ├── views/                     # EJS templates
@@ -94,17 +93,10 @@ Browser
 ```
 Browser
   │
-  ├─ GET /admin/login → admin-login.ejs (hCaptcha widget)
-  │
-  ├─ POST /admin/login
-  │     ├─ verifyHcaptchaToken() → hCaptcha API
-  │     ├─ validateAdminCredentials() → timingSafeEqual(username:password)
-  │     └─ issueAdminSession() → HMAC-signed cookie (TTL=3600s)
-  │
-  ├─ GET /admin/r2 [requireAdminSessionPage]
+  ├─ GET /admin/r2 [requireAdminSessionPage: Access JWT]
   │     └─ admin-r2.ejs → admin-r2.js (SPA-like)
   │
-  └─ /api/admin/* [requireAdminSession + CSRF check]
+  └─ /api/admin/* [requireAdminSession: Access JWT + cross-site block]
         ├─ GET    /r2/status          → R2 config health
         ├─ GET    /r2/files           → merge R2 objects với catalog
         ├─ POST   /r2/sync            → sync R2 objects vào files.json
@@ -152,10 +144,10 @@ Hệ thống hỗ trợ hai storage provider, có thể dùng song song:
 
 ## Auth & Security
 
-### Admin Session
-- Cookie: `dl888_admin_sess`, HMAC-signed (SHA-256), chứa `{ role: 'admin', exp: timestamp }`
-- CSRF: mọi POST/PATCH/DELETE cần header `X-CSRF-Token` hoặc body field `_csrf` (= 16 ký tự cuối session token)
-- Legacy: `ADMIN_BEARER_TOKEN` vẫn hoạt động nhưng bị disable trong production
+### Admin Auth
+- Cloudflare Access (T43iD) JWT (`Cf-Access-Jwt-Assertion` header or `CF_Authorization` cookie) is verified on every admin page and API request (`T43ID_ACCESS_AUD`, `T43ID_TEAM_DOMAIN`, `T43ID_ALLOW_GROUPS`); no password login, no app session
+- Mutating requests with `Sec-Fetch-Site` other than same-origin/none are rejected
+- `ADMIN_BEARER_TOKEN` is non-production machine auth only
 
 ### Download Token
 - Query param `token` trên `/files/:slug`, HMAC-signed, TTL mặc định 120s
@@ -163,7 +155,7 @@ Hệ thống hỗ trợ hai storage provider, có thể dùng song song:
 
 ### Rate Limiting
 - In-memory per-IP, window 300s, max 20 attempts (configurable)
-- Áp dụng cho `/api/verify/:slug` (public captcha) và `/admin/login`
+- Áp dụng cho `/api/verify/:slug` (public captcha)
 
 ### Headers (Helmet)
 - CSP với nonce cho inline scripts
@@ -177,14 +169,12 @@ Hệ thống hỗ trợ hai storage provider, có thể dùng song song:
 |----------|-------|---------|
 | `NODE_ENV` | `production` / `development` | `development` |
 | `PORT` | HTTP port | `3000` |
-| `ADMIN_USERNAME` | Admin login username | _(required)_ |
-| `ADMIN_PASSWORD` | Admin login password | _(required)_ |
-| `ADMIN_SESSION_SECRET` | HMAC key cho session cookie | _(required)_ |
-| `ADMIN_SESSION_TTL_SECONDS` | Session timeout | `3600` |
-| `ADMIN_COOKIE_NAME` | Tên session cookie | `download_hub_admin_sess` |
+| `T43ID_ACCESS_AUD` | Cloudflare Access app AUD tag | _(required in production)_ |
+| `T43ID_TEAM_DOMAIN` | Access team domain | `t43.cloudflareaccess.com` |
+| `T43ID_ALLOW_GROUPS` | Allowed T43iD groups | `admins` |
 | `DOWNLOAD_TOKEN_SECRET` | HMAC key cho download token | _(required)_ |
 | `DOWNLOAD_TOKEN_TTL_SECONDS` | Token TTL | `120` |
-| `HCAPTCHA_ENABLED` | Bật hCaptcha cho admin login | `false` |
+| `HCAPTCHA_ENABLED` | hCaptcha fallback for the public download flow | `false` |
 | `HCAPTCHA_SITE_KEY` | hCaptcha site key | |
 | `HCAPTCHA_SECRET_KEY` | hCaptcha secret key | |
 | `TURNSTILE_ENABLED` | Bật Turnstile cho public download | `true` |

@@ -22,7 +22,7 @@ describe('config validation', () => {
     expect(runner).toThrow(/Turnstile/);
   });
 
-  it('fails fast in production when hCaptcha not configured for admin', () => {
+  it('fails fast in production when T43ID_ACCESS_AUD is missing', () => {
     const runner = () => buildConfig({
       NODE_ENV: 'production',
       DOWNLOAD_TOKEN_SECRET: 'strong-secret',
@@ -30,8 +30,7 @@ describe('config validation', () => {
       TURNSTILE_SITE_KEY: 'k',
       TURNSTILE_SECRET_KEY: 's'
     });
-    // New arch: hCaptcha required for admin panel login
-    expect(runner).toThrow(/hCaptcha/);
+    expect(runner).toThrow(/T43ID_ACCESS_AUD/);
   });
 
   it('allows explicit trust proxy list', () => {

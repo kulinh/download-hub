@@ -5,7 +5,7 @@ This is the day-0/day-2 operator guide for the canonical deployment path:
 - Reverse proxy: CloudPanel Nginx (TLS termination + proxy)
 - Storage: Cloudflare R2 (S3-compatible)
 - Public protection: Cloudflare Turnstile → short-lived HMAC download token
-- Admin protection: username + password + hCaptcha + signed session cookie
+- Admin protection: Cloudflare Access (T43iD), JWT verified by the app
 
 If you need deeper deployment detail, see the deploy references listed below.
 
@@ -13,7 +13,7 @@ If you need deeper deployment detail, see the deploy references listed below.
 - Domain + valid HTTPS cert on CloudPanel
 - Node.js 20+ and PM2 installed on the host
 - Cloudflare R2 account + bucket created
-- Turnstile + hCaptcha keys provisioned
+- Turnstile keys provisioned
 - Secrets prepared (see `.env.example`)
 
 ## 2) Environment variables (production minimum)
@@ -23,17 +23,11 @@ NODE_ENV=production
 APP_BASE_URL=https://<your-download-domain>
 APP_HOSTNAME=<your-download-domain>
 DOWNLOAD_TOKEN_SECRET=<long-random-secret>
-ADMIN_USERNAME=<admin-user>
-ADMIN_PASSWORD=<strong-password>
-ADMIN_SESSION_SECRET=<long-random-secret>
+T43ID_ACCESS_AUD=<access-app-aud-tag>
 TURNSTILE_ENABLED=true
 TURNSTILE_SITE_KEY=...
 TURNSTILE_SECRET_KEY=...
 TURNSTILE_ACTION=download_gate
-HCAPTCHA_ENABLED=true
-HCAPTCHA_SITE_KEY=...
-HCAPTCHA_SECRET_KEY=...
-HCAPTCHA_EXPECTED_HOSTNAME=<your-download-domain>
 R2_ENABLED=true
 R2_ACCOUNT_ID=...
 R2_ACCESS_KEY_ID=...
@@ -80,7 +74,7 @@ Update and apply `deploy/R2-CORS-POLICY.json` before using admin uploads.
 
 ## 5) Health & ops checks
 - Health endpoint: `GET /health` should return 200.
-- Admin login: `/admin/login` → hCaptcha → credentials → session cookie set.
+- Admin sign-in: `/admin` via Cloudflare Access (T43iD), JWT checked on every request.
 - Admin R2 panel: `/admin/r2` → list files, upload, publish/unpublish.
 - Logs: `pm2 logs download-hub` — ensure no auth/storage errors.
 - Status: `pm2 list` and `pm2 describe download-hub`.

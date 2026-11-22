@@ -65,7 +65,6 @@ describe('R2 metadata contract normalization', () => {
   it('keeps public defaults neutral', () => {
     const cfg = buildConfig({});
     expect(cfg.sessionCookieName).toBe('download_hub_session');
-    expect(cfg.admin.cookieName).toBe('download_hub_admin_sess');
     expect(cfg.appDisplayName).toBe('Download Hub');
   });
 });

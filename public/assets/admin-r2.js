@@ -7,7 +7,6 @@
 
   /* ── Config ───────────────────────────────────────────────────── */
   const locale = script.dataset.locale || 'en';
-  const csrf = script.dataset.csrf || '';
 
   const msgs = {
     r2Ok: script.dataset.msgR2Ok || 'R2 connected.',
@@ -132,7 +131,7 @@
   async function apiFetch(url, opts = {}) {
     const merged = {
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+      headers: { 'Content-Type': 'application/json' },
       ...opts
     };
     if (opts.headers) merged.headers = { ...merged.headers, ...opts.headers };
@@ -689,7 +688,7 @@
     try {
       const resp = await fetch('/api/admin/r2/upload-direct?key=' + encodeURIComponent(f.name), {
         method: 'POST',
-        headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-CSRF-Token': csrf },
+        headers: { 'Content-Type': f.type || 'application/octet-stream' },
         body: f
       });
       const data = await resp.json().catch(() => ({}));
@@ -723,7 +722,7 @@
   async function doLocalUpload(f, fillEl) {
     const resp = await fetch('/api/admin/local/upload?relativePath=' + encodeURIComponent(f.name), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream', 'X-CSRF-Token': csrf },
+      headers: { 'Content-Type': 'application/octet-stream' },
       body: f
     });
     const data = await resp.json().catch(() => ({}));
@@ -747,7 +746,6 @@
       method: 'POST',
       headers: {
         'Content-Type': 'application/octet-stream',
-        'X-CSRF-Token': csrf,
         'X-Filename': encodeURIComponent(f.name),
         'X-Dropbox-Path': encodeURIComponent(path),
         'X-Content-Type': f.type || 'application/octet-stream'
