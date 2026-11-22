@@ -3,7 +3,7 @@
  * Port of @kulinh/t43id accessVerifier (t43id/ts). Headers alone prove nothing:
  * the JWT is checked against the team's keys, AUD and group.
  */
-import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { createLocalJWKSet, createRemoteJWKSet, errors, jwtVerify } from 'jose';
 
 export const ACCESS_HEADER = 'cf-access-jwt-assertion';
 export const ACCESS_COOKIE = 'CF_Authorization';
@@ -32,7 +32,16 @@ export async function verifyAccess(req, { teamDomain, audience, allowGroups = []
   const issuer = `https://${String(teamDomain).replace(/^https?:\/\//, '').replace(/\/+$/, '')}`;
   let keys = testKeys || remoteKeys.get(issuer);
   if (!keys) {
-    keys = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+    const remote = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`), { cacheMaxAge: 3_600_000 });
+    keys = async (header, token) => {
+      try {
+        return await remote(header, token);
+      } catch (e) {
+        const cached = remote.jwks();
+        if (!cached || e instanceof errors.JWKSNoMatchingKey) throw e;
+        return createLocalJWKSet(cached)(header, token);
+      }
+    };
     remoteKeys.set(issuer, keys);
   }
   let payload;
