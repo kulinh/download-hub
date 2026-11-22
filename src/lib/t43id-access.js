@@ -1,6 +1,6 @@
 /**
  * t43id-access.js — verify the Cloudflare Access JWT (t43id sign-in) in front of /admin.
- * Port of @kulinh/t43id accessVerifier (t43stack/id/ts). Headers alone prove nothing:
+ * Port of @kulinh/t43id accessVerifier (t43id/ts). Headers alone prove nothing:
  * the JWT is checked against the team's keys, AUD and group.
  */
 import { createRemoteJWKSet, jwtVerify } from 'jose';
