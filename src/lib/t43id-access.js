@@ -33,7 +33,11 @@ export async function verifyAccess(req, { teamDomain, audience, allowGroups = []
   let keys = testKeys || remoteKeys.get(issuer);
   if (!keys) {
     const remote = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`), { cacheMaxAge: 3_600_000 });
+    let lastTry = 0;
     keys = async (header, token) => {
+      const fresh = remote.jwks();
+      if (fresh && Date.now() - lastTry < 30_000) return createLocalJWKSet(fresh)(header, token);
+      lastTry = Date.now();
       try {
         return await remote(header, token);
       } catch (e) {
